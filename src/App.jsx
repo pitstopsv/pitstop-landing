@@ -1397,3 +1397,4 @@ const S = {
   whyCard: { background: "#101013", border: "1px solid #1E1E22", borderRadius: 12, padding: "28px 26px" },
   whyNumber: { color: "#E10600", fontSize: 13, fontWeight: 800, fontFamily: F_HEAD, marginBottom: 16, letterSpacing: "0.06em" },
   whyTitle: { color: "#fff", fontSize: 16, fontWeight: 700, margin: "0 0 10px", fontFamily
+            }
