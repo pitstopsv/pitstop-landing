@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 // ============================================================
 // CONFIGURACIÓN — REEMPLAZA ESTOS DOS VALORES CON LOS TUYOS
 // ============================================================
-const SUPABASE_URL = "https://zjmqpylfpvawzrogycqi.supabase.co/rest/v1/";
+const SUPABASE_URL = "https://zjmqpylfpvawzrogycqi.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpqbXFweWxmcHZhd3pyb2d5Y3FpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMDIwNzQsImV4cCI6MjA5Njc3ODA3NH0.O0q9-k-dhuIXI0LEQ9WTvz2ekIkaALjrs_C-WDb3rRk";
 // ============================================================
 
