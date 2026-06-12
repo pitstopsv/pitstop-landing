@@ -1355,7 +1355,7 @@ const S = {
   navDropdownBtn: { background: "none", border: "none", color: "#A1A1AA", fontSize: 13, fontWeight: 500, cursor: "pointer", padding: "8px 13px 14px", display: "flex", alignItems: "center", fontFamily: F_BODY },
   navLink: { color: "#A1A1AA", textDecoration: "none", fontSize: 13, fontWeight: 500, padding: "8px 13px" },
   navCta: { background: "#E10600", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 600, padding: "9px 18px", borderRadius: 6, marginLeft: 8 },
-  dropdown: { position: "absolute", top: "100%", right: 0, marginTop: 6, background: "#141416", padingTop: 6 , border: "1px solid #232328", borderRadius: 10, minWidth: 230, boxShadow: "0 16px 50px rgba(0,0,0,0.6)", zIndex: 200, overflow: "hidden" },
+  dropdown: { position: "absolute", top: "calc(100% - 10px)", right: 0, marginTop: 0, background: "#141416", padingTop: 16 , border: "1px solid #232328", borderRadius: 10, minWidth: 230, boxShadow: "0 16px 50px rgba(0,0,0,0.6)", zIndex: 200, overflow: "hidden" },
   dropdownHeader: { padding: "11px 16px 9px", color: "#52525B", fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", borderBottom: "1px solid #1E1E22" },
   dropdownList: { maxHeight: 340, overflowY: "auto" },
   dropdownItem: { display: "flex", alignItems: "center", width: "100%", background: "none", border: "none", color: "#D4D4D8", padding: "11px 16px", cursor: "pointer", fontSize: 13, fontWeight: 450, textAlign: "left", fontFamily: F_BODY },
