@@ -481,6 +481,7 @@ export default function App() {
     await saveProducts(editingProduct ? products.map(x => x.id === editingProduct.id ? p : x) : [...products, p]);
     resetForm(); notify(editingProduct ? "Producto actualizado" : "Producto agregado");
   };
+  const moveProduct = async (i, dir) => { const arr = [...products]; const n = i + dir; if (n < 0 || n >= arr.length) return; [arr[i]. arr[n]] = [arr[n] , arr[i]]; await saveProducts(arr); };
   const handleDelete = async (id) => { await saveProducts(products.filter(x => x.id !== id)); notify("Producto eliminado"); };
   const startEdit = (p) => { setForm({ name: p.name, category: p.category, price: p.price.toString(), description: p.description, inStock: p.inStock, images: p.images || [], gender: p.gender || "Unisex", sizes: p.sizes || [], team: p.team || "", driver: p.driver || "", featured: !!p.featured }); setEditingProduct(p); setShowForm(true); };
   const resetForm = () => { setForm({ name: "", category: categories[0] || "", price: "", description: "", inStock: true, images: [], gender: genders[0] || "Unisex", sizes: [], team: "", driver: "", featured: false }); setEditingProduct(null); setShowForm(false); };
@@ -943,7 +944,11 @@ export default function App() {
 
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {products.map(p => (
-              <div key={p.id} style={S.adminRow}>
+             <div key={p.id} style={S.adminRow}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+                  <button onClick={() => moveProduct(products.indexOf(p), -1)} disabled={products.indexOf(p) === 0} style={{ ...S.arrowBtn, opacity: products.indexOf(p) === 0 ? 0.3 : 1 }}>↑</button>
+                  <button onClick={() => moveProduct(products.indexOf(p), 1)} disabled={products.indexOf(p) === products.length - 1} style={{ ...S.arrowBtn, opacity: products.indexOf(p) === products.length - 1 ? 0.3 : 1 }}>↓</button>
+                </div>
                 <div style={{ width: 50, height: 50, borderRadius: 6, background: "#19191C", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   {p.images && p.images.length > 0 ? <img src={p.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ color: "#3A3A40", fontSize: 10 }}>—</span>}
                 </div>
