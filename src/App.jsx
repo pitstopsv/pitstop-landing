@@ -943,11 +943,11 @@ export default function App() {
           )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {products.map(p => (
+            {products.map(p, pi) => (
              <div key={p.id} style={S.adminRow}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <button onClick={() => moveProduct(products.indexOf(p), -1)} disabled={products.indexOf(p) === 0} style={{ ...S.arrowBtn, opacity: products.indexOf(p) === 0 ? 0.3 : 1 }}>↑</button>
-                  <button onClick={() => moveProduct(products.indexOf(p), 1)} disabled={products.indexOf(p) === products.length - 1} style={{ ...S.arrowBtn, opacity: products.indexOf(p) === products.length - 1 ? 0.3 : 1 }}>↓</button>
+                  <button onClick={() => moveProduct(pi, -1)} disabled={pi === 0} style={{ ...S.arrowBtn, opacity: pi === 0 ? 0.3 : 1 }}>↑</button>
+                  <button onClick={() => moveProduct(pi, 1)} disabled={pi === products.length - 1} style={{ ...S.arrowBtn, opacity: pi === products.length - 1 ? 0.3 : 1 }}>↓</button>
                 </div>
                 <div style={{ width: 50, height: 50, borderRadius: 6, background: "#19191C", overflow: "hidden", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   {p.images && p.images.length > 0 ? <img src={p.images[0]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} /> : <span style={{ color: "#3A3A40", fontSize: 10 }}>—</span>}
