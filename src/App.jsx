@@ -383,7 +383,6 @@ export default function App() {
         try { setProducts(JSON.parse(pRaw).map(p => ({ gender: "Unisex", sizes: [], team: "", driver: "", featured: false, ...p, images: p.images || (p.image ? [p.image] : []) }))); } catch(e) { setProducts(defaultProducts); }
       } else {
         setProducts(defaultProducts);
-        storeSet("pitstop_products_v3", JSON.stringify(defaultProducts));
       }
       if (lRaw) setLogo(lRaw);
       if (aRaw) setAboutImage(aRaw);
