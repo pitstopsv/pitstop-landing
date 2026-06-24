@@ -481,7 +481,7 @@ export default function App() {
     await saveProducts(editingProduct ? products.map(x => x.id === editingProduct.id ? p : x) : [...products, p]);
     resetForm(); notify(editingProduct ? "Producto actualizado" : "Producto agregado");
   };
-  const moveProduct = async (i, dir) => { const arr = [...products]; const n = i + dir; if (n < 0 || n >= arr.length) return; [arr[i]. arr[n]] = [arr[n] , arr[i]]; await saveProducts(arr); };
+  const moveProduct = async (i, dir) => { const arr = [...products]; const n = i + dir; if (n < 0 || n >= arr.length) return; [arr[i], arr[n]] = [arr[n], arr[i]]; await saveProducts(arr); };
   const handleDelete = async (id) => { await saveProducts(products.filter(x => x.id !== id)); notify("Producto eliminado"); };
   const startEdit = (p) => { setForm({ name: p.name, category: p.category, price: p.price.toString(), description: p.description, inStock: p.inStock, images: p.images || [], gender: p.gender || "Unisex", sizes: p.sizes || [], team: p.team || "", driver: p.driver || "", featured: !!p.featured }); setEditingProduct(p); setShowForm(true); };
   const resetForm = () => { setForm({ name: "", category: categories[0] || "", price: "", description: "", inStock: true, images: [], gender: genders[0] || "Unisex", sizes: [], team: "", driver: "", featured: false }); setEditingProduct(null); setShowForm(false); };
@@ -943,7 +943,7 @@ export default function App() {
           )}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {products.map(p, pi) => (
+            {products.map((p, pi) => (
              <div key={p.id} style={S.adminRow}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
                   <button onClick={() => moveProduct(pi, -1)} disabled={pi === 0} style={{ ...S.arrowBtn, opacity: pi === 0 ? 0.3 : 1 }}>↑</button>
@@ -1359,7 +1359,7 @@ const S = {
   navDropdownBtn: { background: "none", border: "none", color: "#A1A1AA", fontSize: 13, fontWeight: 500, cursor: "pointer", padding: "8px 13px 14px", display: "flex", alignItems: "center", fontFamily: F_BODY },
   navLink: { color: "#A1A1AA", textDecoration: "none", fontSize: 13, fontWeight: 500, padding: "8px 13px" },
   navCta: { background: "#E10600", color: "#fff", textDecoration: "none", fontSize: 13, fontWeight: 600, padding: "9px 18px", borderRadius: 6, marginLeft: 8 },
-  dropdown: { position: "absolute", top: "calc(100% - 10px)", right: 0, marginTop: 0, background: "#141416", padingTop: 16 , border: "1px solid #232328", borderRadius: 10, minWidth: 230, boxShadow: "0 16px 50px rgba(0,0,0,0.6)", zIndex: 200, overflow: "hidden" },
+  dropdown: { position: "absolute", top: "calc(100% - 10px)", right: 0, marginTop: 0, background: "#141416", paddingTop: 16, border: "1px solid #232328", borderRadius: 10, minWidth: 230, boxShadow: "0 16px 50px rgba(0,0,0,0.6)", zIndex: 200, overflow: "hidden" },
   dropdownHeader: { padding: "11px 16px 9px", color: "#52525B", fontSize: 10, fontWeight: 600, letterSpacing: "0.12em", textTransform: "uppercase", borderBottom: "1px solid #1E1E22" },
   dropdownList: { maxHeight: 340, overflowY: "auto" },
   dropdownItem: { display: "flex", alignItems: "center", width: "100%", background: "none", border: "none", color: "#D4D4D8", padding: "11px 16px", cursor: "pointer", fontSize: 13, fontWeight: 450, textAlign: "left", fontFamily: F_BODY },
