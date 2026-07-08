@@ -107,7 +107,7 @@ const defaultContent = {
   driversTitle1: "Compra por", driversTitleHighlight: "Piloto",
   newTitle1: "Nuevos en la", newTitleHighlight: "tienda",
   featuredTitle1: "Productos", featuredTitleHighlight: "destacados",
-  catalogTitle1: "Nuestro", catalogTitleHighlight: "catálogo",
+  catalogTitle1: "Nuestro", catalogTitleHighlight: "catálogo",   saleTitle1: "En", saleTitleHighlight: "oferta",
   aboutTitle1: "Sobre", aboutTitleHighlight: "nosotros",
   aboutTagline: "Pasión por la Fórmula 1",
   aboutText: "Pit Stop El Salvador nació de la pasión que compartimos por la Fórmula 1 y el deseo de acercar el mejor merchandising a los fans salvadoreños. Lo que comenzó como una pequeña tienda en Instagram, hoy es una comunidad de más de 3,785 aficionados que confían en nosotros para vestir los colores de su escudería favorita.\n\nNos enorgullece ofrecer productos de calidad, atención personalizada y envíos a todo El Salvador. Cada pedido es atendido directamente por nosotros, porque sabemos que detrás de cada compra hay un fan que vive cada carrera con la misma intensidad que nosotros.",
@@ -245,7 +245,7 @@ function ProductCard({ p, waLink, onImageClick }) {
         <div style={S.cardEyebrow}>{p.category}</div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 12, marginBottom: 6 }}>
           <h3 style={S.cardTitle}>{p.name}</h3>
-          <span style={S.cardPrice}>${p.price.toFixed(2)}</span>
+          <span style={S.cardPrice}>{p.salePrice ? <><span style={{ textDecoration: "line-through", color: "#52525B", fontWeight: 500, marginRight: 8, fontSize: 13 }}>${p.price.toFixed(2)}</span>${p.salePrice.toFixed(2)}</> : `$${p.price.toFixed(2)}`}</span>
         </div>
         <p style={S.cardDesc}>{p.description}</p>
         {meta && <div style={S.cardMeta}>{meta}</div>}
@@ -337,7 +337,7 @@ export default function App() {
   const [openMenu, setOpenMenu] = useState(null);
   const [editingProduct, setEditingProduct] = useState(null);
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: "", category: "", price: "", description: "", inStock: true, images: [], gender: "Unisex", sizes: [], team: "", driver: "", featured: false });
+  const [form, setForm] = useState({ name: "", category: "", price: "", description: "", inStock: true, images: [], gender: "Unisex", sizes: [], team: "", driver: "", featured: false, salePrice: "" });
   const [adminTab, setAdminTab] = useState("products");
   const fileRef = useRef(null);
   const logoRef = useRef(null);
@@ -477,14 +477,14 @@ export default function App() {
 
   const handleSave = async () => {
     if (!form.name || !form.price) return notify("Completa nombre y precio");
-    const p = { ...form, price: parseFloat(form.price), id: editingProduct ? editingProduct.id : Date.now().toString() };
+    const p = { ...form, price: parseFloat(form.price), salePrice: form.salePrice ? parseFloat(form.salePrice) : null, id: editingProduct ? editingProduct.id : Date.now().toString() };
     await saveProducts(editingProduct ? products.map(x => x.id === editingProduct.id ? p : x) : [...products, p]);
     resetForm(); notify(editingProduct ? "Producto actualizado" : "Producto agregado");
   };
   const moveProduct = async (i, dir) => { const arr = [...products]; const n = i + dir; if (n < 0 || n >= arr.length) return; [arr[i], arr[n]] = [arr[n], arr[i]]; await saveProducts(arr); };
   const handleDelete = async (id) => { await saveProducts(products.filter(x => x.id !== id)); notify("Producto eliminado"); };
-  const startEdit = (p) => { setForm({ name: p.name, category: p.category, price: p.price.toString(), description: p.description, inStock: p.inStock, images: p.images || [], gender: p.gender || "Unisex", sizes: p.sizes || [], team: p.team || "", driver: p.driver || "", featured: !!p.featured }); setEditingProduct(p); setShowForm(true); };
-  const resetForm = () => { setForm({ name: "", category: categories[0] || "", price: "", description: "", inStock: true, images: [], gender: genders[0] || "Unisex", sizes: [], team: "", driver: "", featured: false }); setEditingProduct(null); setShowForm(false); };
+  const startEdit = (p) => { setForm({ name: p.name, category: p.category, price: p.price.toString(), description: p.description, inStock: p.inStock, images: p.images || [], gender: p.gender || "Unisex", sizes: p.sizes || [], team: p.team || "", driver: p.driver || "", featured: !!p.featured, salePrice: p.salePrice ? p.salePrice.toString() : "" }); setEditingProduct(p); setShowForm(true); };
+  const resetForm = () => { setForm({ name: "", category: categories[0] || "", price: "", description: "", inStock: true, images: [], gender: genders[0] || "Unisex", sizes: [], team: "", driver: "", featured: false, salePrice: "" }); setEditingProduct(null); setShowForm(false); };
 
   const updateStat = (i, key, val) => { const s = [...content.stats]; s[i] = { ...s[i], [key]: val }; saveContent({ ...content, stats: s }); };
   const updateWhy = (i, key, val) => { const w = [...content.whyCards]; w[i] = { ...w[i], [key]: val }; saveContent({ ...content, whyCards: w }); };
@@ -779,7 +779,7 @@ export default function App() {
           </div>
 
           <div style={S.formCard}>
-            <h3 style={S.adminH3}>Sección Catálogo</h3>
+            </div>            <div style={S.formCard}>             <h3 style={S.adminH3}>Sección "En Oferta"</h3>             <p style={S.adminHint}>Aparece automáticamente cuando un producto tiene precio de oferta.</p>             <EditField label="Título (parte 1)" value={content.saleTitle1 || "En"} onChange={v => saveContent({ ...content, saleTitle1: v })} />             <EditField label="Título (rojo)" value={content.saleTitleHighlight || "oferta"} onChange={v => saveContent({ ...content, saleTitleHighlight: v })} />
             <EditField label="Título (parte 1)" value={content.catalogTitle1} onChange={v => saveContent({ ...content, catalogTitle1: v })} />
             <EditField label="Título (rojo)" value={content.catalogTitleHighlight} onChange={v => saveContent({ ...content, catalogTitleHighlight: v })} />
           </div>
@@ -880,7 +880,7 @@ export default function App() {
                       </select>
                     </div>
                   </div>
-                  <EditField label="Precio (USD) *" value={form.price} onChange={v => setForm(f => ({ ...f, price: v }))} />
+                  <EditField label="Precio (USD) *" value={form.price} onChange={v => setForm(f => ({ ...f, price: v }))} />                   <EditField label="Precio de oferta (USD) — dejar vacío si no está en oferta" value={form.salePrice || ""} onChange={v => setForm(f => ({ ...f, salePrice: v }))} />
                   <label style={S.label}>Tallas disponibles</label>
                   <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
                     {sizes.map(sz => (
@@ -1185,7 +1185,7 @@ export default function App() {
         </section>
       )}
 
-      <section id="catalogo" style={{ ...S.section, borderTop: "1px solid #18181B" }}>
+      {products.filter(p => p.salePrice && p.inStock).length > 0 && (         <section style={{ ...S.section, borderTop: "1px solid #18181B" }}>           <SectionTitle part1={content.saleTitle1 || "En"} highlight={content.saleTitleHighlight || "oferta"} />           <div style={S.productGrid}>             {products.filter(p => p.salePrice && p.inStock).map(p => <ProductCard key={p.id} p={p} waLink={waLink} onImageClick={openLightbox} />)}           </div>         </section>       )} style={{ ...S.section, borderTop: "1px solid #18181B" }}>
         <SectionTitle part1={content.catalogTitle1} highlight={content.catalogTitleHighlight} />
 
         <div style={S.catTabs}>
@@ -1390,7 +1390,7 @@ const S = {
   productGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 22 },
   productCard: { background: "#121214", borderRadius: 12, overflow: "hidden", border: "1px solid #1E1E22", display: "flex", flexDirection: "column" },
   soldOut: { position: "absolute", top: 12, left: 12, background: "rgba(11,11,12,0.85)", backdropFilter: "blur(4px)", color: "#A1A1AA", padding: "5px 12px", borderRadius: 5, fontSize: 10, fontWeight: 600, zIndex: 5, letterSpacing: "0.1em", textTransform: "uppercase", border: "1px solid rgba(255,255,255,0.08)" },
-  featuredBadge: { position: "absolute", top: 12, left: 12, background: "rgba(225,6,0,0.92)", color: "#fff", padding: "5px 12px", borderRadius: 5, fontSize: 10, fontWeight: 700, zIndex: 5, letterSpacing: "0.1em", textTransform: "uppercase" },
+  saleBadge: { position: "absolute", top: 12, left: 12, background: "#fff", color: "#0B0B0C", padding: "5px 12px", borderRadius: 5, fontSize: 10, fontWeight: 700, zIndex: 5, letterSpacing: "0.1em", textTransform: "uppercase" }, color: "#fff", padding: "5px 12px", borderRadius: 5, fontSize: 10, fontWeight: 700, zIndex: 5, letterSpacing: "0.1em", textTransform: "uppercase" },
   cardEyebrow: { color: "#71717A", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 },
   cardTitle: { color: "#fff", fontSize: 15, fontWeight: 700, margin: 0, lineHeight: 1.35, fontFamily: F_HEAD, letterSpacing: "-0.01em" },
   cardPrice: { color: "#fff", fontSize: 15, fontWeight: 700, fontFamily: F_HEAD, whiteSpace: "nowrap" },
