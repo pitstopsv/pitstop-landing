@@ -8,7 +8,7 @@ const SUPABASE_URL = "https://zjmqpylfpvawzrogycqi.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpqbXFweWxmcHZhd3pyb2d5Y3FpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODEyMDIwNzQsImV4cCI6MjA5Njc3ODA3NH0.O0q9-k-dhuIXI0LEQ9WTvz2ekIkaALjrs_C-WDb3rRk";
 // ============================================================
 
-const WHATSAPP_NUMBER = "50375991408";
+const WHATSAPP_NUMBER = "50368496398";
 const INSTAGRAM_URL = "https://instagram.com/pitstopelsalvador";
 const ADMIN_PASSWORD = "Pitstopsv3110!";
 
