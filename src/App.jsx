@@ -843,6 +843,11 @@ export default function App() {
   const addTopBar = () => saveContent({ ...content, topBarMessages: [...content.topBarMessages, "Nuevo mensaje"] });
   const removeTopBar = (i) => saveContent({ ...content, topBarMessages: content.topBarMessages.filter((_, j) => j !== i) });
 
+  const goHome = () => {
+    setOpenMenu(null);
+    if (getRoute() === "home") window.scrollTo({ top: 0, behavior: "smooth" });
+    else window.location.hash = "";
+  };
   const goCatalog = () => {
     setOpenMenu(null);
     if (getRoute() === "catalog") window.scrollTo({ top: 0, behavior: "smooth" });
@@ -1389,7 +1394,7 @@ export default function App() {
       <TopBar messages={(() => { const rm = raceCountdownMsg(f1.nextRace, f1.nowMs); return rm ? [rm, ...(content.topBarMessages || [])] : content.topBarMessages; })()} />
 
       <nav style={S.nav}><div style={S.navInner}>
-        <div style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0 }}>
+        <div onClick={goHome} title="Volver a la portada" style={{ display: "flex", alignItems: "center", gap: 11, minWidth: 0, cursor: "pointer" }}>
           {logo && <img src={logo} alt="Logo" style={{ height: isMobile ? 28 : 34, objectFit: "contain" }} />}
           <span style={{ color: "#fff", fontWeight: 800, fontSize: isMobile ? 15 : 17, fontFamily: F_HEAD, letterSpacing: "0.01em", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {content.brandName1} <span style={{ color: "#E10600" }}>{content.brandName2}</span>
@@ -1407,6 +1412,11 @@ export default function App() {
           </div>
         ) : (
           <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
+            {route !== "home" && (
+              <button className="navbtn" onClick={goHome} style={S.navDropdownBtn}>
+                Inicio
+              </button>
+            )}
             {hasSaleProducts && (
               <button className="navbtn" onClick={goSale} style={{ ...S.navDropdownBtn, color: "#FF4438", fontWeight: 600 }}>
                 {content.navSale || "Ofertas"}
@@ -1501,6 +1511,7 @@ export default function App() {
             </div>
             <div style={S.mobileDrawerBody}>
               {mobileSection === null && (<>
+                <button onClick={() => { setMobileMenuOpen(false); goHome(); }} style={S.mobileNavItem}><span>Inicio</span></button>
                 {hasSaleProducts && <button onClick={() => { setMobileMenuOpen(false); goSale(); }} style={{ ...S.mobileNavItem, color: "#FF4438", fontWeight: 600 }}><span>{content.navSale || "Ofertas"}</span></button>}
                 <button onClick={() => setMobileSection("catalog")} style={S.mobileNavItem}><span>{content.navCatalog || "Catálogo"}</span><span style={{ color: "#52525B" }}>›</span></button>
                 {teams.length > 0 && <button onClick={() => setMobileSection("teams")} style={S.mobileNavItem}><span>{content.navTeams || "Escuderías"}</span><span style={{ color: "#52525B" }}>›</span></button>}
@@ -1726,7 +1737,8 @@ export default function App() {
       </>)}
 
       {route === "sale" && (
-        <section style={{ ...S.section, paddingTop: 64 }}>
+        <section style={{ ...S.section, paddingTop: 48 }}>
+          <button className="ftlink" onClick={goHome} style={S.backLink}>← Volver a la portada</button>
           <SectionTitle part1={content.saleTitle1 || "En"} highlight={content.saleTitleHighlight || "oferta"} align="left" meta={saleProducts.length + " productos rebajados"} />
           {saleProducts.length === 0 && (
             <p style={{ color: "#52525B", padding: "30px 0" }}>
@@ -1740,7 +1752,8 @@ export default function App() {
       )}
 
       {route === "catalog" && (<>
-      <section id="catalogo" style={{ ...S.section, paddingTop: 64 }}>
+      <section id="catalogo" style={{ ...S.section, paddingTop: 48 }}>
+        <button className="ftlink" onClick={goHome} style={S.backLink}>← Volver a la portada</button>
         <SectionTitle part1={content.catalogTitle1} highlight={content.catalogTitleHighlight} align="left" meta={products.length > 0 ? shown.length + " de " + products.length + " productos" : null} />
 
         <div style={S.catTabs}>
@@ -1903,6 +1916,7 @@ export default function App() {
           </div>
           <div>
             <div style={S.footerColTitle}>Navegación</div>
+            <div className="ftlink" onClick={goHome} style={S.footerLink}>Inicio</div>
             {hasSaleProducts && <div className="ftlink" onClick={goSale} style={S.footerLink}>{content.navSale || "Ofertas"}</div>}
             <div className="ftlink" onClick={goCatalog} style={S.footerLink}>Catálogo</div>
             <div className="ftlink" onClick={() => scrollToSection("about")} style={S.footerLink}>Nuestra historia</div>
@@ -1955,6 +1969,7 @@ const S = {
   btnGhost: { display: "inline-flex", alignItems: "center", gap: 8, background: "transparent", color: "#D4D4D8", padding: "13px 28px", borderRadius: 6, fontWeight: 500, fontSize: 14, textDecoration: "none", border: "1px solid #2A2A2F", cursor: "pointer", fontFamily: F_BODY },
   btnWa: { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, background: "#1DA851", color: "#fff", padding: "11px 0", borderRadius: 6, fontWeight: 600, fontSize: 13, textDecoration: "none", width: "100%", fontFamily: F_BODY },
   btnDisabled: { background: "#19191C", color: "#52525B", padding: "11px 0", borderRadius: 6, fontWeight: 500, fontSize: 13, border: "1px solid #232328", cursor: "not-allowed", width: "100%", fontFamily: F_BODY },
+  backLink: { background: "none", border: "none", color: "#71717A", fontSize: 13, fontWeight: 500, cursor: "pointer", padding: 0, marginBottom: 22, fontFamily: F_BODY, display: "inline-flex", alignItems: "center", gap: 6 },
   searchRow: { display: "flex", gap: 10, justifyContent: "center", flexWrap: "wrap", marginBottom: 16 },
   searchInput: { background: "#101013", border: "1px solid #232328", borderRadius: 8, color: "#E4E4E7", padding: "11px 14px", fontSize: 13, width: "min(360px, 100%)", outline: "none", fontFamily: F_BODY },
   sortSelect: { background: "#101013", border: "1px solid #232328", borderRadius: 8, color: "#A1A1AA", padding: "11px 12px", fontSize: 13, outline: "none", fontFamily: F_BODY, cursor: "pointer" },
