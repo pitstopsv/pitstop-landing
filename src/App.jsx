@@ -94,7 +94,7 @@ const F_HEAD = "'Archivo', 'Inter', system-ui, sans-serif";
 const F_BODY = "'Inter', system-ui, -apple-system, sans-serif";
 
 const GLOBAL_CSS = `
-@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@600;700;800;900&family=Inter:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,600;0,700;0,800;0,900;1,800;1,900&family=Inter:wght@400;500;600;700&display=swap');
 *{box-sizing:border-box;-webkit-font-smoothing:antialiased}
 html{scroll-behavior:smooth}
 @keyframes fadeUp{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
@@ -132,6 +132,9 @@ html{scroll-behavior:smooth}
 .standitem:hover{border-color:#E10600;background:#17171B}
 .srch::placeholder{color:#52525B}
 .srch:focus{border-color:#52525B !important}
+.tickertrack{display:inline-flex;white-space:nowrap;will-change:transform;animation:ticker 40s linear infinite}
+@keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@media (prefers-reduced-motion:reduce){.tickertrack{animation:none}}
 @media (max-width:767px){.statitem:not(:last-child){border-right:none}}
 `;
 
@@ -201,7 +204,11 @@ function ImageCarousel({ images, height = 230, onImageClick }) {
     </div>
   );
   return (
-    <div style={{ position: "relative", height, background: "#FFFFFF", overflow: "hidden" }}>
+    <div
+      style={{ position: "relative", height, background: "#FFFFFF", overflow: "hidden" }}
+      onMouseEnter={() => { if (images.length > 1 && idx === 0) setIdx(1); }}
+      onMouseLeave={() => setIdx(0)}
+    >
       <div onClick={() => onImageClick && onImageClick(images, idx)} style={{ width: "100%", height: "100%", cursor: onImageClick ? "zoom-in" : "default" }}>
         <img src={images[idx]} alt="" style={{ width: "100%", height: "100%", objectFit: "cover", display: "block", pointerEvents: "none" }} />
       </div>
@@ -434,7 +441,15 @@ function ProductCard({ p, waLink, onImageClick, onAdd, highlight }) {
 /* ---------------- Datos F1 automáticos (Jolpica, gratis, sin clave) ----------------
    Si la fuente falla, estas secciones simplemente no se muestran: la página
    sigue funcionando exactamente igual, sin errores visibles. */
-const F1_CACHE_KEY = "pitstop_f1_data_v1";
+/* ---------------- Rutas de página (portada / catálogo / ofertas) ---------------- */
+function getRoute() {
+  const h = window.location.hash;
+  if (h.startsWith("#/ofertas")) return "sale";
+  if (h.startsWith("#/catalogo") || h.startsWith("#p/")) return "catalog";
+  return "home";
+}
+
+const F1_CACHE_KEY = "pitstop_f1_data_v2";
 function raceDateMs(r) {
   try { const t = new Date(r.date + "T" + (r.time || "12:00:00Z")).getTime(); return isNaN(t) ? NaN : t; } catch (e) { return NaN; }
 }
@@ -474,21 +489,37 @@ function useF1Data() {
         }
       } catch (e) {}
       try {
-        const [rs, ss] = await Promise.all([
-          fetch("https://api.jolpi.ca/ergast/f1/current.json").then(r => r.json()),
-          fetch("https://api.jolpi.ca/ergast/f1/current/driverStandings.json").then(r => r.json()),
+        const j = (u) => fetch("https://api.jolpi.ca/ergast/f1/" + u).then(r => r.json()).catch(() => null);
+        const [rs, ss, cs, lr] = await Promise.all([
+          j("current.json"), j("current/driverStandings.json"),
+          j("current/constructorStandings.json"), j("current/last/results.json"),
         ]);
         const races = (rs && rs.MRData && rs.MRData.RaceTable && rs.MRData.RaceTable.Races) || [];
-        const lists = (ss && ss.MRData && ss.MRData.StandingsTable && ss.MRData.StandingsTable.StandingsLists) || [];
-        const standings = ((lists[0] && lists[0].DriverStandings) || []).slice(0, 8).map(d => ({
+        const dl = (ss && ss.MRData && ss.MRData.StandingsTable && ss.MRData.StandingsTable.StandingsLists) || [];
+        const drivers = ((dl[0] && dl[0].DriverStandings) || []).slice(0, 8).map(d => ({
           pos: d.position,
           pts: d.points,
           name: (((d.Driver && d.Driver.givenName) || "") + " " + ((d.Driver && d.Driver.familyName) || "")).trim(),
           family: (d.Driver && d.Driver.familyName) || "",
         }));
+        const cl = (cs && cs.MRData && cs.MRData.StandingsTable && cs.MRData.StandingsTable.StandingsLists) || [];
+        const constructors = ((cl[0] && cl[0].ConstructorStandings) || []).slice(0, 8).map(c => ({
+          pos: c.position,
+          pts: c.points,
+          name: (c.Constructor && c.Constructor.name) || "",
+        }));
+        const lrr = (lr && lr.MRData && lr.MRData.RaceTable && lr.MRData.RaceTable.Races) || [];
+        const lastRace = lrr[0] ? {
+          name: lrr[0].raceName || "",
+          podium: (lrr[0].Results || []).slice(0, 3).map(x => ({
+            pos: x.position,
+            name: (((x.Driver && x.Driver.givenName) || "") + " " + ((x.Driver && x.Driver.familyName) || "")).trim(),
+            team: (x.Constructor && x.Constructor.name) || "",
+          })),
+        } : null;
         const season = (ss && ss.MRData && ss.MRData.StandingsTable && ss.MRData.StandingsTable.season) || "";
-        if (races.length === 0 && standings.length === 0) return;
-        const fresh = { ts: Date.now(), races, standings, season };
+        if (races.length === 0 && drivers.length === 0) return;
+        const fresh = { ts: Date.now(), races, drivers, constructors, lastRace, season };
         if (alive) setData(fresh);
         try { localStorage.setItem(F1_CACHE_KEY, JSON.stringify(fresh)); } catch (e) {}
       } catch (e) { /* sin datos: la página sigue igual */ }
@@ -500,18 +531,47 @@ function useF1Data() {
     return () => clearInterval(t);
   }, []);
   const nextRace = data ? nextRaceFrom(data.races, nowMs) : null;
-  return { nextRace, standings: (data && data.standings && data.standings.length > 0) ? data.standings : null, season: (data && data.season) || "", nowMs };
+  return {
+    nextRace,
+    drivers: (data && data.drivers && data.drivers.length > 0) ? data.drivers : null,
+    constructors: (data && data.constructors && data.constructors.length > 0) ? data.constructors : null,
+    lastRace: (data && data.lastRace && data.lastRace.podium && data.lastRace.podium.length > 0) ? data.lastRace : null,
+    season: (data && data.season) || "",
+    nowMs,
+  };
+}
+
+function countdownShort(nextRace, nowMs) {
+  const t = raceDateMs(nextRace);
+  if (isNaN(t)) return "";
+  const diff = t - nowMs;
+  if (diff <= 0) return "\u00A1Hoy!";
+  const d = Math.floor(diff / 86400000);
+  const h = Math.floor((diff % 86400000) / 3600000);
+  const m = Math.floor((diff % 3600000) / 60000);
+  return d > 0 ? d + "d " + h + "h" : h > 0 ? h + "h " + m + "m" : m + "m";
+}
+function fmtRaceDate(r) {
+  const t = raceDateMs(r);
+  if (isNaN(t)) return r && r.date ? r.date : "";
+  try {
+    const str = new Date(t).toLocaleDateString("es-SV", { weekday: "long", day: "numeric", month: "long" });
+    return str.charAt(0).toUpperCase() + str.slice(1);
+  } catch (e) { return r.date || ""; }
 }
 
 function TopBar({ messages }) {
-  const [idx, setIdx] = useState(0);
-  useEffect(() => {
-    if (!messages || messages.length <= 1) return;
-    const t = setInterval(() => setIdx(i => (i + 1) % messages.length), 4000);
-    return () => clearInterval(t);
-  }, [messages]);
-  if (!messages || messages.length === 0) return null;
-  return <div style={S.topBar}>{messages[idx]}</div>;
+  const list = (messages || []).filter(Boolean);
+  if (list.length === 0) return null;
+  const line = list.join("\u2003\u2003\u00B7\u2003\u2003");
+  return (
+    <div style={S.topBar}>
+      <div className="tickertrack">
+        <span style={{ paddingRight: 80 }}>{line}</span>
+        <span style={{ paddingRight: 80 }} aria-hidden="true">{line}</span>
+      </div>
+    </div>
+  );
 }
 
 function FAQItem({ q, a }) {
@@ -527,13 +587,16 @@ function FAQItem({ q, a }) {
   );
 }
 
-function SectionTitle({ part1, highlight, align = "center" }) {
+function SectionTitle({ part1, highlight, align = "center", meta }) {
   return (
     <div style={{ textAlign: align, marginBottom: 40 }}>
       <div style={{ width: 32, height: 2, background: "#E10600", margin: align === "center" ? "0 auto 18px" : "0 0 18px" }} />
-      <h2 style={{ ...S.sectionTitle, textAlign: align }}>
-        {part1} <span style={{ color: "#E10600" }}>{highlight}</span>
-      </h2>
+      <div style={align === "left" ? { display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 16, flexWrap: "wrap" } : undefined}>
+        <h2 style={{ ...S.sectionTitle, textAlign: align }}>
+          {part1} <span style={{ color: "#E10600" }}>{highlight}</span>
+        </h2>
+        {meta && <span style={{ color: "#52525B", fontSize: 13, fontWeight: 500, letterSpacing: "0.04em", whiteSpace: "nowrap" }}>{meta}</span>}
+      </div>
     </div>
   );
 }
@@ -588,6 +651,15 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const cart = useCart();
   const f1 = useF1Data();
+  const [route, setRoute] = useState(getRoute());
+  useEffect(() => {
+    const onHash = () => {
+      setRoute(getRoute());
+      if (!window.location.hash.startsWith("#p/")) window.scrollTo({ top: 0 });
+    };
+    window.addEventListener("hashchange", onHash);
+    return () => window.removeEventListener("hashchange", onHash);
+  }, []);
   const [cartOpen, setCartOpen] = useState(false);
   const addToCart = (p, size) => { cart.add(p, size); setCartOpen(true); };
   const [mobileSection, setMobileSection] = useState(null);
@@ -771,25 +843,39 @@ export default function App() {
   const addTopBar = () => saveContent({ ...content, topBarMessages: [...content.topBarMessages, "Nuevo mensaje"] });
   const removeTopBar = (i) => saveContent({ ...content, topBarMessages: content.topBarMessages.filter((_, j) => j !== i) });
 
+  const goCatalog = () => {
+    setOpenMenu(null);
+    if (getRoute() === "catalog") window.scrollTo({ top: 0, behavior: "smooth" });
+    else window.location.hash = "/catalogo";
+  };
+  const goSale = () => {
+    setOpenMenu(null);
+    if (getRoute() === "sale") window.scrollTo({ top: 0, behavior: "smooth" });
+    else window.location.hash = "/ofertas";
+  };
   const filterByTeam = (teamName) => {
-    setActiveTeam(teamName); setActiveCategory("Todos");
-    setTimeout(() => document.getElementById("catalogo")?.scrollIntoView({ behavior: "smooth" }), 100);
+    setActiveTeam(teamName); setActiveCategory("Todos"); goCatalog();
   };
   const filterByDriver = (driverName) => {
-    setActiveDriver(driverName); setActiveCategory("Todos");
-    setTimeout(() => document.getElementById("catalogo")?.scrollIntoView({ behavior: "smooth" }), 100);
-  };
-  const scrollToSection = (id) => {
-    setOpenMenu(null);
-    setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }), 50);
+    setActiveDriver(driverName); setActiveCategory("Todos"); goCatalog();
   };
   const filterByCategory = (cat) => {
-    setActiveCategory(cat); setOpenMenu(null);
-    setTimeout(() => document.getElementById("catalogo")?.scrollIntoView({ behavior: "smooth" }), 50);
+    setActiveCategory(cat); goCatalog();
+  };
+  // Secciones que viven en la portada (sobre nosotros, preguntas frecuentes)
+  const scrollToSection = (id) => {
+    setOpenMenu(null);
+    if (getRoute() !== "home") {
+      window.location.hash = "";
+      setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }), 400);
+    } else {
+      setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: "smooth" }), 50);
+    }
   };
 
   const usedTeamNames = [...new Set(products.map(p => p.team).filter(Boolean))].sort();
-  const hasSaleProducts = products.some(p => p.salePrice && p.inStock);
+  const saleProducts = products.filter(p => p.salePrice && p.inStock);
+  const hasSaleProducts = saleProducts.length > 0;
   const usedDriverNames = [...new Set(products.map(p => p.driver).filter(Boolean))].sort();
   const newestProducts = [...products].filter(p => p.inStock).sort((a, b) => (b.id || "").localeCompare(a.id || "")).slice(0, 4);
   const featuredProducts = products.filter(p => p.featured && p.inStock).slice(0, 4);
@@ -1322,7 +1408,7 @@ export default function App() {
         ) : (
           <div style={{ display: "flex", gap: 2, alignItems: "center" }}>
             {hasSaleProducts && (
-              <button className="navbtn" onClick={() => scrollToSection("ofertas")} style={{ ...S.navDropdownBtn, color: "#FF4438", fontWeight: 600 }}>
+              <button className="navbtn" onClick={goSale} style={{ ...S.navDropdownBtn, color: "#FF4438", fontWeight: 600 }}>
                 {content.navSale || "Ofertas"}
               </button>
             )}
@@ -1415,7 +1501,7 @@ export default function App() {
             </div>
             <div style={S.mobileDrawerBody}>
               {mobileSection === null && (<>
-                {hasSaleProducts && <button onClick={() => { setMobileMenuOpen(false); scrollToSection("ofertas"); }} style={{ ...S.mobileNavItem, color: "#FF4438", fontWeight: 600 }}><span>{content.navSale || "Ofertas"}</span></button>}
+                {hasSaleProducts && <button onClick={() => { setMobileMenuOpen(false); goSale(); }} style={{ ...S.mobileNavItem, color: "#FF4438", fontWeight: 600 }}><span>{content.navSale || "Ofertas"}</span></button>}
                 <button onClick={() => setMobileSection("catalog")} style={S.mobileNavItem}><span>{content.navCatalog || "Catálogo"}</span><span style={{ color: "#52525B" }}>›</span></button>
                 {teams.length > 0 && <button onClick={() => setMobileSection("teams")} style={S.mobileNavItem}><span>{content.navTeams || "Escuderías"}</span><span style={{ color: "#52525B" }}>›</span></button>}
                 {drivers.length > 0 && <button onClick={() => setMobileSection("drivers")} style={S.mobileNavItem}><span>{content.navDrivers || "Pilotos"}</span><span style={{ color: "#52525B" }}>›</span></button>}
@@ -1467,6 +1553,7 @@ export default function App() {
         </div>
       )}
 
+      {route === "home" && (<>
       <section style={S.hero}>
         <div style={S.heroInner}>
           {logo && <img src={logo} alt="Logo" className="fadeup" style={{ height: 72, marginBottom: 28, objectFit: "contain" }} />}
@@ -1477,7 +1564,7 @@ export default function App() {
             <a className="btnp" href={waGeneral} target="_blank" rel="noopener noreferrer" style={S.btnPrimary}>
               <WaIcon size={15} /> Pedir por WhatsApp
             </a>
-            <a className="btng" href="#catalogo" style={S.btnGhost}>Ver catálogo</a>
+            <a className="btng" href="#/catalogo" style={S.btnGhost}>Ver catálogo</a>
           </div>
         </div>
         <div style={S.heroLine} />
@@ -1501,64 +1588,160 @@ export default function App() {
               <div style={S.statLabel}>{s.label}</div>
             </div>
           ))}
+          {products.length > 0 && (
+            <div className="statitem" style={S.statItem}>
+              <div style={S.statVal}>{products.filter(p => p.inStock).length}</div>
+              <div style={S.statLabel}>En stock ahora</div>
+            </div>
+          )}
         </div>
       </section>
 
-      {f1.standings && (
-        <section style={S.standingsStrip}>
-          <div style={S.standingsInner}>
-            <div style={S.standingsTitle}>Clasificación de pilotos{f1.season ? " · Temporada " + f1.season : ""}</div>
-            <div className="standrow" style={S.standingsRow}>
-              {f1.standings.map(st => {
-                const match = usedDriverNames.find(n => st.family && n.toLowerCase().includes(st.family.toLowerCase()));
-                const inner = (<>
-                  <span style={S.standPos}>P{st.pos}</span>
-                  <span style={S.standName}>{st.name}</span>
-                  <span style={S.standPts}>{st.pts} pts</span>
-                </>);
-                return match ? (
-                  <button key={st.pos} className="standitem" onClick={() => filterByDriver(match)} title={"Ver productos de " + st.name} style={{ ...S.standItem, cursor: "pointer" }}>{inner}</button>
-                ) : (
-                  <div key={st.pos} style={S.standItem}>{inner}</div>
-                );
-              })}
+      {(f1.drivers || f1.nextRace || f1.lastRace) && (
+        <section style={S.seasonWrap}>
+          <div style={S.seasonInner}>
+            <SectionTitle part1="Así va la" highlight="temporada" align="left" meta={"Fórmula 1 en vivo" + (f1.season ? " · " + f1.season : "")} />
+            <div style={S.seasonGrid}>
+              {f1.lastRace && (
+                <div style={S.seasonCard}>
+                  <div style={S.seasonCardTitle}>Última carrera</div>
+                  <div style={S.seasonCardBig}>{raceDisplayName(f1.lastRace.name)}</div>
+                  <div style={{ marginTop: 12, display: "flex", flexDirection: "column", gap: 7 }}>
+                    {f1.lastRace.podium.map(r => (
+                      <div key={r.pos} style={{ display: "flex", gap: 10, alignItems: "baseline" }}>
+                        <span style={{ ...S.standPos, width: 24 }}>P{r.pos}</span>
+                        <span style={S.standName}>{r.name}</span>
+                        <span style={S.standPts}>{r.team}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {f1.nextRace && (
+                <div style={S.seasonCard}>
+                  <div style={S.seasonCardTitle}>Próxima carrera</div>
+                  <div style={S.seasonCardBig}>{raceDisplayName(f1.nextRace.raceName)}</div>
+                  <div style={{ color: "#A1A1AA", fontSize: 13, marginTop: 6 }}>{fmtRaceDate(f1.nextRace)}</div>
+                  <div style={{ marginTop: 12, fontFamily: F_HEAD, fontWeight: 800, fontSize: 26, color: "#fff", letterSpacing: "-0.01em" }}>{countdownShort(f1.nextRace, f1.nowMs)}</div>
+                  <div style={S.standPts}>para las luces apagadas</div>
+                </div>
+              )}
+              {f1.drivers && (
+                <div style={S.seasonCard}>
+                  <div style={S.seasonCardTitle}>Líderes del campeonato</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 10 }}>
+                    <div>
+                      <div style={S.standPts}>Pilotos</div>
+                      <div style={S.seasonLeader}>{f1.drivers[0].name} <span style={{ color: "#E10600" }}>· {f1.drivers[0].pts} pts</span></div>
+                    </div>
+                    {f1.constructors && (
+                      <div>
+                        <div style={S.standPts}>Escuderías</div>
+                        <div style={S.seasonLeader}>{f1.constructors[0].name} <span style={{ color: "#E10600" }}>· {f1.constructors[0].pts} pts</span></div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
+            {(f1.drivers || f1.constructors) && (
+              <div style={S.seasonTables}>
+                {f1.drivers && (
+                  <div>
+                    <div style={{ ...S.seasonCardTitle, marginBottom: 10 }}>Clasificación de pilotos</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                      {f1.drivers.map(st => {
+                        const match = usedDriverNames.find(n => st.family && n.toLowerCase().includes(st.family.toLowerCase()));
+                        const row = (<>
+                          <span style={{ ...S.standPos, width: 26, flexShrink: 0 }}>P{st.pos}</span>
+                          <span style={{ ...S.standName, flex: 1 }}>{st.name}</span>
+                          {match && <span style={{ color: "#52525B", fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase" }}>Ver merch</span>}
+                          <span style={S.standPts}>{st.pts} pts</span>
+                        </>);
+                        return match ? (
+                          <button key={st.pos} className="standitem" onClick={() => filterByDriver(match)} title={"Ver productos de " + st.name} style={{ ...S.seasonRow, cursor: "pointer" }}>{row}</button>
+                        ) : (
+                          <div key={st.pos} style={S.seasonRow}>{row}</div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                {f1.constructors && (
+                  <div>
+                    <div style={{ ...S.seasonCardTitle, marginBottom: 10 }}>Clasificación de escuderías</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                      {f1.constructors.map(c => {
+                        const cn = (c.name || "").toLowerCase();
+                        const match = usedTeamNames.find(n => n.toLowerCase().includes(cn) || cn.includes(n.toLowerCase()));
+                        const row = (<>
+                          <span style={{ ...S.standPos, width: 26, flexShrink: 0 }}>P{c.pos}</span>
+                          <span style={{ ...S.standName, flex: 1 }}>{c.name}</span>
+                          {match && <span style={{ color: "#52525B", fontSize: 10, letterSpacing: "0.06em", textTransform: "uppercase" }}>Ver merch</span>}
+                          <span style={S.standPts}>{c.pts} pts</span>
+                        </>);
+                        return match ? (
+                          <button key={c.pos} className="standitem" onClick={() => filterByTeam(match)} title={"Ver productos de " + c.name} style={{ ...S.seasonRow, cursor: "pointer" }}>{row}</button>
+                        ) : (
+                          <div key={c.pos} style={S.seasonRow}>{row}</div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </section>
       )}
 
-      {newestProducts.length > 0 && (
+      {(featuredProducts.length > 0 || newestProducts.length > 0) && (
         <section style={S.section}>
-          <SectionTitle part1={content.newTitle1} highlight={content.newTitleHighlight} />
+          <SectionTitle
+            part1={featuredProducts.length > 0 ? content.featuredTitle1 : content.newTitle1}
+            highlight={featuredProducts.length > 0 ? content.featuredTitleHighlight : content.newTitleHighlight}
+            align="left"
+            meta={products.length > 0 ? products.length + " productos en la tienda" : null}
+          />
           <div className="pgrid" style={S.productGrid}>
-            {newestProducts.map(p => <ProductCard key={p.id} p={p} waLink={waLink} onImageClick={openLightbox} onAdd={addToCart} highlight={highlightId === p.id} />)}
+            {(featuredProducts.length > 0 ? featuredProducts : newestProducts).map(p => <ProductCard key={p.id} p={p} waLink={waLink} onImageClick={openLightbox} onAdd={addToCart} highlight={highlightId === p.id} />)}
           </div>
           <div style={{ textAlign: "center", marginTop: 36 }}>
-            <a className="btng" href="#catalogo" style={S.btnGhost}>Ver catálogo completo</a>
+            <a className="btng" href="#/catalogo" style={S.btnGhost}>Ver catálogo completo →</a>
           </div>
         </section>
       )}
 
-      {featuredProducts.length > 0 && (
+      {saleProducts.length > 0 && (
         <section style={{ ...S.section, borderTop: "1px solid #18181B" }}>
-          <SectionTitle part1={content.featuredTitle1} highlight={content.featuredTitleHighlight} />
+          <SectionTitle part1={content.saleTitle1 || "En"} highlight={content.saleTitleHighlight || "oferta"} align="left" meta={saleProducts.length + " productos rebajados"} />
           <div className="pgrid" style={S.productGrid}>
-            {featuredProducts.map(p => <ProductCard key={p.id} p={p} waLink={waLink} onImageClick={openLightbox} onAdd={addToCart} highlight={highlightId === p.id} />)}
+            {saleProducts.slice(0, 4).map(p => <ProductCard key={p.id} p={p} waLink={waLink} onImageClick={openLightbox} onAdd={addToCart} highlight={highlightId === p.id} />)}
+          </div>
+          <div style={{ textAlign: "center", marginTop: 36 }}>
+            <a className="btng" href="#/ofertas" style={S.btnGhost}>Ver todas las ofertas →</a>
+          </div>
+        </section>
+      )}
+      </>)}
+
+      {route === "sale" && (
+        <section style={{ ...S.section, paddingTop: 64 }}>
+          <SectionTitle part1={content.saleTitle1 || "En"} highlight={content.saleTitleHighlight || "oferta"} align="left" meta={saleProducts.length + " productos rebajados"} />
+          {saleProducts.length === 0 && (
+            <p style={{ color: "#52525B", padding: "30px 0" }}>
+              Por ahora no hay productos en oferta. Pasá por el <a href="#/catalogo" style={{ color: "#FF4438" }}>catálogo completo</a> — seguro encontrás algo.
+            </p>
+          )}
+          <div className="pgrid" style={S.productGrid}>
+            {saleProducts.map(p => <ProductCard key={p.id} p={p} waLink={waLink} onImageClick={openLightbox} onAdd={addToCart} highlight={highlightId === p.id} />)}
           </div>
         </section>
       )}
 
-      {products.filter(p => p.salePrice && p.inStock).length > 0 && (
-        <section id="ofertas" style={{ ...S.section, borderTop: "1px solid #18181B" }}>
-          <SectionTitle part1={content.saleTitle1 || "En"} highlight={content.saleTitleHighlight || "oferta"} />
-          <div className="pgrid" style={S.productGrid}>
-            {products.filter(p => p.salePrice && p.inStock).map(p => <ProductCard key={p.id} p={p} waLink={waLink} onImageClick={openLightbox} onAdd={addToCart} highlight={highlightId === p.id} />)}
-          </div>
-        </section>
-      )}
-
-      <section id="catalogo" style={{ ...S.section, borderTop: "1px solid #18181B" }}>
-        <SectionTitle part1={content.catalogTitle1} highlight={content.catalogTitleHighlight} />
+      {route === "catalog" && (<>
+      <section id="catalogo" style={{ ...S.section, paddingTop: 64 }}>
+        <SectionTitle part1={content.catalogTitle1} highlight={content.catalogTitleHighlight} align="left" meta={products.length > 0 ? shown.length + " de " + products.length + " productos" : null} />
 
         <div style={S.catTabs}>
           <FilterPill label="Todos" active={activeCategory === "Todos"} onClick={() => setActiveCategory("Todos")} />
@@ -1632,7 +1815,9 @@ export default function App() {
           {shown.map(p => <ProductCard key={p.id} p={p} waLink={waLink} onImageClick={openLightbox} onAdd={addToCart} highlight={highlightId === p.id} />)}
         </div>
       </section>
+      </>)}
 
+      {route === "home" && (<>
       <section style={{ ...S.section, borderTop: "1px solid #18181B" }}>
         <SectionTitle part1={content.whyTitle1} highlight={content.whyTitleHighlight + "?"} />
         <div style={S.whyGrid}>
@@ -1703,6 +1888,7 @@ export default function App() {
           </div>
         </div>
       </section>
+      </>)}
 
       <footer style={S.footer}>
         <div style={S.footerInner}>
@@ -1717,8 +1903,8 @@ export default function App() {
           </div>
           <div>
             <div style={S.footerColTitle}>Navegación</div>
-            {hasSaleProducts && <div className="ftlink" onClick={() => scrollToSection("ofertas")} style={S.footerLink}>{content.navSale || "Ofertas"}</div>}
-            <div className="ftlink" onClick={() => scrollToSection("catalogo")} style={S.footerLink}>Catálogo</div>
+            {hasSaleProducts && <div className="ftlink" onClick={goSale} style={S.footerLink}>{content.navSale || "Ofertas"}</div>}
+            <div className="ftlink" onClick={goCatalog} style={S.footerLink}>Catálogo</div>
             <div className="ftlink" onClick={() => scrollToSection("about")} style={S.footerLink}>Nuestra historia</div>
             <div className="ftlink" onClick={() => scrollToSection("faq")} style={S.footerLink}>Preguntas frecuentes</div>
           </div>
@@ -1749,7 +1935,7 @@ const S = {
   loader: { color: "#A1A1AA", fontSize: 13, fontWeight: 500, fontFamily: F_BODY, letterSpacing: "0.14em", textTransform: "uppercase", display: "flex", flexDirection: "column", alignItems: "center" },
   landing: { background: "#0B0B0C", fontFamily: F_BODY, minHeight: "100vh", position: "relative", color: "#FAFAFA" },
   notif: { position: "fixed", top: 20, left: "50%", transform: "translateX(-50%)", background: "#141416", borderLeft: "2px solid #E10600", border: "1px solid #232328", color: "#fff", padding: "12px 22px", borderRadius: 8, fontWeight: 500, fontSize: 13, zIndex: 9999, boxShadow: "0 8px 30px rgba(0,0,0,0.5)" },
-  topBar: { background: "#000", color: "#A1A1AA", textAlign: "center", padding: "9px 16px", fontSize: 11, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", borderBottom: "1px solid #18181B" },
+  topBar: { background: "#000", color: "#A1A1AA", padding: "9px 0", fontSize: 11, fontWeight: 500, letterSpacing: "0.1em", textTransform: "uppercase", borderBottom: "1px solid #18181B", overflow: "hidden", whiteSpace: "nowrap" },
   nav: { position: "sticky", top: 0, background: "rgba(11,11,12,0.92)", backdropFilter: "blur(12px)", borderBottom: "1px solid #18181B", zIndex: 100, padding: "0 24px" },
   navInner: { maxWidth: 1180, margin: "0 auto", display: "flex", justifyContent: "space-between", alignItems: "center", height: 62 },
   navDropdownBtn: { background: "none", border: "none", color: "#A1A1AA", fontSize: 13, fontWeight: 500, cursor: "pointer", padding: "8px 13px 14px", display: "flex", alignItems: "center", fontFamily: F_BODY },
@@ -1762,7 +1948,7 @@ const S = {
   hero: { position: "relative", background: "radial-gradient(ellipse 80% 60% at 50% -10%, rgba(225,6,0,0.07), transparent), repeating-linear-gradient(90deg, rgba(255,255,255,0.012) 0 1px, transparent 1px 80px), #0B0B0C", padding: "100px 24px 104px", textAlign: "center" },
   heroInner: { maxWidth: 760, margin: "0 auto", display: "flex", flexDirection: "column", alignItems: "center" },
   heroBadge: { display: "inline-flex", alignItems: "center", gap: 8, background: "transparent", border: "1px solid #2A2A2F", color: "#C4C4CC", padding: "8px 18px", borderRadius: 100, fontSize: 11, fontWeight: 500, letterSpacing: "0.14em", textTransform: "uppercase", marginBottom: 28 },
-  heroTitle: { color: "#fff", fontSize: "clamp(32px, 5.6vw, 56px)", fontWeight: 800, lineHeight: 1.08, margin: "0 0 22px", letterSpacing: "-0.02em", fontFamily: F_HEAD },
+  heroTitle: { color: "#fff", fontSize: "clamp(32px, 5.6vw, 56px)", fontWeight: 900, fontStyle: "italic", lineHeight: 1.06, margin: "0 0 22px", letterSpacing: "-0.02em", fontFamily: F_HEAD, paddingRight: "0.08em" },
   heroSub: { color: "#A1A1AA", fontSize: 16, lineHeight: 1.7, marginBottom: 34, maxWidth: 540 },
   heroLine: { position: "absolute", bottom: 0, left: 0, right: 0, height: 2, background: "#E10600" },
   btnPrimary: { display: "inline-flex", alignItems: "center", gap: 9, background: "#E10600", color: "#fff", padding: "13px 28px", borderRadius: 6, fontWeight: 600, fontSize: 14, textDecoration: "none", border: "none", cursor: "pointer", fontFamily: F_BODY },
@@ -1784,6 +1970,15 @@ const S = {
   standPos: { color: "#E10600", fontFamily: F_HEAD, fontWeight: 800, fontSize: 12 },
   standName: { color: "#D4D4D8", fontSize: 12.5, fontWeight: 600 },
   standPts: { color: "#71717A", fontSize: 11.5 },
+  seasonWrap: { borderBottom: "1px solid #18181B", background: "#0D0D0F" },
+  seasonInner: { maxWidth: 1180, margin: "0 auto", padding: "64px 24px 60px" },
+  seasonGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 14 },
+  seasonCard: { border: "1px solid #1E1E22", background: "#101013", borderRadius: 12, padding: "20px 22px" },
+  seasonCardTitle: { color: "#52525B", fontSize: 10, fontWeight: 700, letterSpacing: "0.14em", textTransform: "uppercase", fontFamily: F_BODY },
+  seasonCardBig: { color: "#fff", fontFamily: F_HEAD, fontWeight: 800, fontSize: 20, marginTop: 8, letterSpacing: "-0.01em", lineHeight: 1.2 },
+  seasonLeader: { color: "#D4D4D8", fontFamily: F_HEAD, fontWeight: 800, fontSize: 16, marginTop: 2 },
+  seasonTables: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(290px, 1fr))", gap: 28, marginTop: 30 },
+  seasonRow: { display: "flex", alignItems: "baseline", gap: 10, border: "1px solid transparent", borderRadius: 8, padding: "7px 10px", background: "transparent", width: "100%", textAlign: "left", fontFamily: F_BODY },
   statsStrip: { borderBottom: "1px solid #18181B", background: "#0D0D0F" },
   statsInner: { maxWidth: 1180, margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" },
   statItem: { padding: "34px 20px", textAlign: "center" },
