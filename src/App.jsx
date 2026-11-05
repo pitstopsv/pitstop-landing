@@ -625,6 +625,35 @@ function fmtRaceDate(r) {
   } catch (e) { return r.date || ""; }
 }
 
+/* ---------------- Importador de Excel (inventario) ---------------- */
+function impNorm(str) {
+  return String(str || "")
+    .toLowerCase()
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9 ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+function impSim(a, b) {
+  const A = new Set(impNorm(a).split(" ").filter(Boolean));
+  const B = new Set(impNorm(b).split(" ").filter(Boolean));
+  if (A.size === 0 || B.size === 0) return 0;
+  let inter = 0;
+  A.forEach(t => { if (B.has(t)) inter++; });
+  return (2 * inter) / (A.size + B.size);
+}
+const IMP_CATS = { gorra: "Gorras", camisa: "Camisas", camiseta: "Camisas", accesorio: "Accesorios", chaqueta: "Chaquetas", sueter: "Suéteres", "sueteres": "Suéteres", botella: "Botellas", bolson: "Bolsones", lentes: "Lentes" };
+function impCategory(c) {
+  const n = impNorm(c);
+  return IMP_CATS[n] || (String(c || "").trim() || "Accesorios");
+}
+function impSize(t) {
+  const n = impNorm(t);
+  if (!n) return null;
+  if (n === "one size" || n === "onesize" || n === "unica" || n === "talla unica" || n === "u") return "Onesize";
+  return String(t).trim().toUpperCase();
+}
+
 /* ---------------- Pit Lane: juegos ---------------- */
 function LightsOutGame() {
   const [phase, setPhase] = useState("idle"); // idle | seq | go | result | foul
@@ -831,6 +860,117 @@ export default function App() {
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ name: "", category: "", price: "", description: "", inStock: true, images: [], gender: "Unisex", sizes: [], team: "", driver: "", featured: false, salePrice: "" });
   const [adminTab, setAdminTab] = useState("products");
+  const [importPlan, setImportPlan] = useState(null);
+  const [importBusy, setImportBusy] = useState(false);
+  const importFileRef = useRef(null);
+
+  const handleImportFile = async (file) => {
+    if (!file) return;
+    setImportBusy(true);
+    try {
+      const XLSX = await import("xlsx");
+      const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+      // hoja: "Inventario" o la primera cuyo encabezado tenga Producto + Estado
+      let elegida = null, headerIdx = -1, headers = null, data = null;
+      const nombres = [...wb.SheetNames].sort((a, b) => (impNorm(b) === "inventario") - (impNorm(a) === "inventario"));
+      for (const nm of nombres) {
+        const rows = XLSX.utils.sheet_to_json(wb.Sheets[nm], { header: 1, defval: "" });
+        for (let i = 0; i < Math.min(rows.length, 20); i++) {
+          const low = rows[i].map(c => impNorm(c));
+          if (low.includes("producto") && low.includes("estado")) { elegida = nm; headerIdx = i; headers = low; data = rows; break; }
+        }
+        if (elegida) break;
+      }
+      if (!elegida) { notify("⚠️ No encontré una hoja con columnas Producto y Estado"); return; }
+      const col = (name) => headers.indexOf(name);
+      const cProd = col("producto"), cEstado = col("estado"), cCat = col("categoria"),
+        cTeam = col("escuderia"), cDriver = col("corredor"), cTalla = col("talla"), cPrecio = col("precio venta");
+      // unidades disponibles → agrupadas por producto
+      const grupos = {};
+      for (let i = headerIdx + 1; i < data.length; i++) {
+        const r = data[i];
+        if (!r || !r[cProd]) continue;
+        if (impNorm(r[cEstado]) !== "disponible") continue;
+        const key = impNorm(r[cProd]);
+        if (!key) continue;
+        if (!grupos[key]) grupos[key] = { name: String(r[cProd]).trim(), sizes: [], prices: [], cat: "", team: "", driver: "", units: 0 };
+        const g = grupos[key];
+        g.units++;
+        const t = cTalla >= 0 ? impSize(r[cTalla]) : null;
+        if (t && !g.sizes.includes(t)) g.sizes.push(t);
+        const pr = cPrecio >= 0 ? Number(r[cPrecio]) : NaN;
+        if (isFinite(pr) && pr > 0) g.prices.push(pr);
+        if (!g.cat && cCat >= 0) g.cat = impCategory(r[cCat]);
+        if (!g.team && cTeam >= 0) g.team = String(r[cTeam] || "").trim();
+        if (!g.driver && cDriver >= 0) g.driver = String(r[cDriver] || "").trim();
+      }
+      const items = Object.values(grupos).map(g => {
+        const candidatos = products
+          .map(p => ({ id: p.id, name: p.name, score: impSim(g.name, p.name) }))
+          .sort((a, b) => b.score - a.score)
+          .slice(0, 6)
+          .filter(c => c.score >= 0.3);
+        const auto = candidatos[0] && candidatos[0].score >= 0.85;
+        return {
+          ...g,
+          price: g.prices.length ? Math.max(...g.prices) : 0,
+          candidatos,
+          choice: auto ? "match:" + candidatos[0].id : "new",
+        };
+      }).sort((a, b) => a.name.localeCompare(b.name));
+      if (items.length === 0) { notify("⚠️ El Excel no tiene productos con estado Disponible"); return; }
+      setImportPlan({ items, markMissing: true, hoja: elegida });
+    } catch (e) {
+      notify("⚠️ No pude leer el Excel: " + (e && e.message ? e.message : e));
+    } finally {
+      setImportBusy(false);
+      if (importFileRef.current) importFileRef.current.value = "";
+    }
+  };
+
+  const applyImport = async () => {
+    const plan = importPlan;
+    if (!plan) return;
+    const matchedIds = new Set(plan.items.filter(i => i.choice.startsWith("match:")).map(i => i.choice.slice(6)));
+    let updated = 0, created = 0, agotados = 0;
+    let final = products.map(p => {
+      const item = plan.items.find(i => i.choice === "match:" + p.id);
+      if (item) {
+        updated++;
+        return { ...p, inStock: true, price: item.price || p.price, sizes: item.sizes.length ? item.sizes : p.sizes };
+      }
+      if (plan.markMissing && p.inStock && !matchedIds.has(String(p.id))) {
+        agotados++;
+        return { ...p, inStock: false };
+      }
+      return p;
+    });
+    const base = Date.now();
+    plan.items.forEach((item, i) => {
+      if (item.choice !== "new") return;
+      created++;
+      final.push({
+        id: String(base + i),
+        name: item.name,
+        category: item.cat || "Accesorios",
+        price: item.price || 0,
+        salePrice: null,
+        description: "",
+        inStock: true,
+        images: [],
+        gender: "Unisex",
+        sizes: item.sizes,
+        team: item.team,
+        driver: item.driver,
+        featured: false,
+      });
+    });
+    const newCats = [...new Set(plan.items.filter(i => i.choice === "new").map(i => i.cat).filter(c => c && !categories.includes(c)))];
+    if (newCats.length) await saveCategories([...categories, ...newCats]);
+    const ok = await saveProducts(final);
+    if (ok) notify(`Importado ✓ ${created} nuevos · ${updated} actualizados · ${agotados} marcados agotados`);
+    setImportPlan(null);
+  };
   const fileRef = useRef(null);
   const logoRef = useRef(null);
   const aboutImgRef = useRef(null);
@@ -1467,8 +1607,62 @@ export default function App() {
         {adminTab === "products" && (<>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", margin: "8px 0 12px", flexWrap: "wrap", gap: 8 }}>
             <span style={{ color: "#8A8A93", fontSize: 14 }}>{products.length} productos</span>
-            <button className="btnp" onClick={() => { resetForm(); setShowForm(true); }} style={S.btnRed}>Agregar producto</button>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <input ref={importFileRef} type="file" accept=".xlsx,.xlsm" style={{ display: "none" }} onChange={e => handleImportFile(e.target.files && e.target.files[0])} />
+              <button onClick={() => importFileRef.current && importFileRef.current.click()} disabled={importBusy} style={{ ...S.btnRed, background: "transparent", border: "1px solid #3F3F46", color: "#D4D4D8", cursor: importBusy ? "wait" : "pointer" }}>
+                {importBusy ? "Leyendo…" : "📥 Importar Excel"}
+              </button>
+              <button className="btnp" onClick={() => { resetForm(); setShowForm(true); }} style={S.btnRed}>Agregar producto</button>
+            </div>
           </div>
+
+          {importPlan && (() => {
+            const matchedIds = new Set(importPlan.items.filter(i => i.choice.startsWith("match:")).map(i => i.choice.slice(6)));
+            const nuevos = importPlan.items.filter(i => i.choice === "new").length;
+            const actualizar = matchedIds.size;
+            const omitidos = importPlan.items.filter(i => i.choice === "skip").length;
+            const aAgotar = importPlan.markMissing ? products.filter(p => p.inStock && !matchedIds.has(String(p.id))) : [];
+            const setChoice = (idx, v) => setImportPlan(pl => ({ ...pl, items: pl.items.map((it, j) => j === idx ? { ...it, choice: v } : it) }));
+            return (
+              <div style={{ ...S.formCard, border: "1px solid #E10600" }}>
+                <h3 style={S.adminH3}>Vista previa de importación — hoja "{importPlan.hoja}"</h3>
+                <p style={S.adminHint}>
+                  {importPlan.items.length} productos con stock disponible en el Excel → <b style={{ color: "#8FE38F" }}>{nuevos} se crearán</b> · <b style={{ color: "#7EB8FF" }}>{actualizar} actualizarán uno existente</b>{omitidos > 0 && <> · {omitidos} no se importarán</>}. Revisá cada fila: el menú dice qué se hará. <b>Nada se guarda hasta que presiones Aplicar.</b>
+                </p>
+                <div style={{ maxHeight: 420, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, paddingRight: 4 }}>
+                  {importPlan.items.map((it, idx) => (
+                    <div key={idx} style={{ display: "grid", gridTemplateColumns: "minmax(200px, 1fr) minmax(220px, 1fr)", gap: 10, alignItems: "center", background: "#0D0D0F", border: "1px solid #1E1E22", borderRadius: 8, padding: "10px 12px" }}>
+                      <div>
+                        <div style={{ color: "#fff", fontSize: 13, fontWeight: 600, lineHeight: 1.35 }}>{it.name}</div>
+                        <div style={{ color: "#71717A", fontSize: 11.5, marginTop: 3 }}>
+                          {it.units} en stock · ${it.price} · {it.sizes.join(", ") || "sin talla"}{it.cat ? " · " + it.cat : ""}
+                        </div>
+                      </div>
+                      <select value={it.choice} onChange={e => setChoice(idx, e.target.value)} style={{ ...S.input, marginBottom: 0, fontSize: 12.5 }}>
+                        <option value="new">➕ Crear como producto nuevo</option>
+                        {it.candidatos.map(c => (
+                          <option key={c.id} value={"match:" + c.id}>↻ {Math.round(c.score * 100)}% — actualizar: {c.name}</option>
+                        ))}
+                        <option value="skip">— No importar</option>
+                      </select>
+                    </div>
+                  ))}
+                </div>
+                <label style={{ display: "flex", gap: 10, alignItems: "flex-start", margin: "16px 0 6px", cursor: "pointer" }}>
+                  <input type="checkbox" checked={importPlan.markMissing} onChange={e => setImportPlan(pl => ({ ...pl, markMissing: e.target.checked }))} style={{ width: 16, height: 16, accentColor: "#E10600", marginTop: 2 }} />
+                  <span style={{ color: "#A1A1AA", fontSize: 13, lineHeight: 1.5 }}>
+                    Marcar como <b>Agotado</b> los productos del sitio que no quedaron emparejados con stock del Excel
+                    {importPlan.markMissing && aAgotar.length > 0 && <> — afecta a <b style={{ color: "#FF4438" }}>{aAgotar.length}</b>: <span style={{ color: "#71717A" }}>{aAgotar.slice(0, 6).map(p => p.name).join(" · ")}{aAgotar.length > 6 ? " · …" : ""}</span></>}
+                    {importPlan.markMissing && aAgotar.length === 0 && <> — ninguno se ve afectado</>}
+                  </span>
+                </label>
+                <div style={{ display: "flex", gap: 10, marginTop: 12, flexWrap: "wrap" }}>
+                  <button className="btnp" onClick={applyImport} style={S.btnRed}>Aplicar importación</button>
+                  <button onClick={() => setImportPlan(null)} style={{ ...S.btnRed, background: "transparent", border: "1px solid #3F3F46", color: "#A1A1AA" }}>Cancelar</button>
+                </div>
+              </div>
+            );
+          })()}
 
           {showForm && (
             <div style={S.formCard}>
