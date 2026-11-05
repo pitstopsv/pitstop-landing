@@ -132,6 +132,8 @@ html{scroll-behavior:smooth}
 .standitem:hover{border-color:#E10600;background:#17171B}
 .srch::placeholder{color:#52525B}
 .srch:focus{border-color:#52525B !important}
+.newsrow{transition:border-color .2s,transform .2s}
+.newsrow:hover{border-color:#3F3F46;transform:translateY(-2px)}
 .tickertrack{display:inline-flex;white-space:nowrap;will-change:transform;animation:ticker 40s linear infinite}
 @keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 @media (prefers-reduced-motion:reduce){.tickertrack{animation:none}}
@@ -533,12 +535,64 @@ function useF1Data() {
   const nextRace = data ? nextRaceFrom(data.races, nowMs) : null;
   return {
     nextRace,
+    races: data ? data.races : null,
     drivers: (data && data.drivers && data.drivers.length > 0) ? data.drivers : null,
     constructors: (data && data.constructors && data.constructors.length > 0) ? data.constructors : null,
     lastRace: (data && data.lastRace && data.lastRace.podium && data.lastRace.podium.length > 0) ? data.lastRace : null,
     season: (data && data.season) || "",
     nowMs,
   };
+}
+
+const FLAGS = { "bahrain": "\u{1F1E7}\u{1F1ED}", "saudi arabia": "\u{1F1F8}\u{1F1E6}", "australia": "\u{1F1E6}\u{1F1FA}", "japan": "\u{1F1EF}\u{1F1F5}", "china": "\u{1F1E8}\u{1F1F3}", "usa": "\u{1F1FA}\u{1F1F8}", "united states": "\u{1F1FA}\u{1F1F8}", "italy": "\u{1F1EE}\u{1F1F9}", "monaco": "\u{1F1F2}\u{1F1E8}", "canada": "\u{1F1E8}\u{1F1E6}", "spain": "\u{1F1EA}\u{1F1F8}", "austria": "\u{1F1E6}\u{1F1F9}", "uk": "\u{1F1EC}\u{1F1E7}", "united kingdom": "\u{1F1EC}\u{1F1E7}", "great britain": "\u{1F1EC}\u{1F1E7}", "hungary": "\u{1F1ED}\u{1F1FA}", "belgium": "\u{1F1E7}\u{1F1EA}", "netherlands": "\u{1F1F3}\u{1F1F1}", "azerbaijan": "\u{1F1E6}\u{1F1FF}", "singapore": "\u{1F1F8}\u{1F1EC}", "mexico": "\u{1F1F2}\u{1F1FD}", "brazil": "\u{1F1E7}\u{1F1F7}", "qatar": "\u{1F1F6}\u{1F1E6}", "uae": "\u{1F1E6}\u{1F1EA}", "united arab emirates": "\u{1F1E6}\u{1F1EA}", "abu dhabi": "\u{1F1E6}\u{1F1EA}", "france": "\u{1F1EB}\u{1F1F7}", "germany": "\u{1F1E9}\u{1F1EA}", "portugal": "\u{1F1F5}\u{1F1F9}", "south korea": "\u{1F1F0}\u{1F1F7}", "india": "\u{1F1EE}\u{1F1F3}", "turkey": "\u{1F1F9}\u{1F1F7}", "argentina": "\u{1F1E6}\u{1F1F7}", "south africa": "\u{1F1FF}\u{1F1E6}", "russia": "\u{1F1F7}\u{1F1FA}", "malaysia": "\u{1F1F2}\u{1F1FE}", "thailand": "\u{1F1F9}\u{1F1ED}", "vietnam": "\u{1F1FB}\u{1F1F3}", "rwanda": "\u{1F1F7}\u{1F1FC}" };
+function countryFlag(r) {
+  try {
+    const c = ((r.Circuit && r.Circuit.Location && r.Circuit.Location.country) || "").toLowerCase().trim();
+    return FLAGS[c] || "\u{1F3C1}";
+  } catch (e) { return "\u{1F3C1}"; }
+}
+function fmtRaceDateShort(r) {
+  const t = raceDateMs(r);
+  if (isNaN(t)) return "";
+  try { return new Date(t).toLocaleDateString("es-SV", { day: "numeric", month: "short" }).replace(".", ""); } catch (e) { return ""; }
+}
+function fmtNewsDate(d) {
+  if (!d) return "";
+  const t = new Date(d).getTime();
+  if (isNaN(t)) return "";
+  const h = Math.floor((Date.now() - t) / 3600000);
+  if (h < 1) return "hace minutos";
+  if (h < 24) return "hace " + h + " h";
+  try { return new Date(t).toLocaleDateString("es-SV", { day: "numeric", month: "short" }).replace(".", ""); } catch (e) { return ""; }
+}
+
+// Titulares de F1 servidos por la función propia del sitio (/.netlify/functions/noticias).
+// Si la función o las fuentes fallan, la sección no se muestra y nada se rompe.
+function useF1News() {
+  const [news, setNews] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const c = JSON.parse(localStorage.getItem("pitstop_f1_news_v1") || "null");
+        if (c && Date.now() - c.ts < 3600 * 1000 && c.data && c.data.items && c.data.items.length > 0) {
+          if (alive) setNews(c.data);
+          return;
+        }
+      } catch (e) {}
+      try {
+        const r = await fetch("/.netlify/functions/noticias");
+        if (!r.ok) return;
+        const data = await r.json();
+        if (data && data.items && data.items.length > 0) {
+          if (alive) setNews(data);
+          try { localStorage.setItem("pitstop_f1_news_v1", JSON.stringify({ ts: Date.now(), data })); } catch (e) {}
+        }
+      } catch (e) {}
+    })();
+    return () => { alive = false; };
+  }, []);
+  return news;
 }
 
 function countdownShort(nextRace, nowMs) {
@@ -651,6 +705,10 @@ export default function App() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const cart = useCart();
   const f1 = useF1Data();
+  const news = useF1News();
+  const upcomingRaces = (f1.races && f1.nextRace)
+    ? f1.races.filter(r => { const t = raceDateMs(r); const tn = raceDateMs(f1.nextRace); return !isNaN(t) && !isNaN(tn) && t > tn; }).slice(0, 2)
+    : [];
   const [route, setRoute] = useState(getRoute());
   useEffect(() => {
     const onHash = () => {
@@ -1631,10 +1689,21 @@ export default function App() {
               {f1.nextRace && (
                 <div style={S.seasonCard}>
                   <div style={S.seasonCardTitle}>Próxima carrera</div>
-                  <div style={S.seasonCardBig}>{raceDisplayName(f1.nextRace.raceName)}</div>
+                  <div style={S.seasonCardBig}>{countryFlag(f1.nextRace)} {raceDisplayName(f1.nextRace.raceName)}</div>
                   <div style={{ color: "#A1A1AA", fontSize: 13, marginTop: 6 }}>{fmtRaceDate(f1.nextRace)}</div>
                   <div style={{ marginTop: 12, fontFamily: F_HEAD, fontWeight: 800, fontSize: 26, color: "#fff", letterSpacing: "-0.01em" }}>{countdownShort(f1.nextRace, f1.nowMs)}</div>
                   <div style={S.standPts}>para las luces apagadas</div>
+                  {upcomingRaces.length > 0 && (
+                    <div style={{ marginTop: 14, borderTop: "1px solid #1E1E22", paddingTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                      {upcomingRaces.map((r, i) => (
+                        <div key={i} style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+                          <span>{countryFlag(r)}</span>
+                          <span style={{ ...S.standName, flex: 1 }}>{raceDisplayName(r.raceName)}</span>
+                          <span style={S.standPts}>{fmtRaceDateShort(r)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               {f1.drivers && (
@@ -1702,6 +1771,20 @@ export default function App() {
                 )}
               </div>
             )}
+          </div>
+        </section>
+      )}
+
+      {news && news.items && news.items.length > 0 && (
+        <section style={{ ...S.section, paddingBottom: 24 }}>
+          <SectionTitle part1="Últimas de la" highlight="Fórmula 1" align="left" meta={"titulares de " + (news.source || "la prensa") + " · se actualizan solos"} />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 10 }}>
+            {news.items.slice(0, 4).map((n, i) => (
+              <a key={i} className="newsrow" href={n.link} target="_blank" rel="noopener noreferrer" style={S.newsRow}>
+                <span style={S.newsTitle}>{n.title}</span>
+                <span style={S.newsMeta}>{(news.source || "Fuente")}{fmtNewsDate(n.date) ? " · " + fmtNewsDate(n.date) : ""} ↗</span>
+              </a>
+            ))}
           </div>
         </section>
       )}
@@ -1985,6 +2068,9 @@ const S = {
   standPos: { color: "#E10600", fontFamily: F_HEAD, fontWeight: 800, fontSize: 12 },
   standName: { color: "#D4D4D8", fontSize: 12.5, fontWeight: 600 },
   standPts: { color: "#71717A", fontSize: 11.5 },
+  newsRow: { display: "flex", flexDirection: "column", gap: 6, padding: "15px 17px", border: "1px solid #1E1E22", borderRadius: 10, background: "#101013", textDecoration: "none" },
+  newsTitle: { color: "#E4E4E7", fontSize: 14, fontWeight: 600, lineHeight: 1.45, fontFamily: F_BODY },
+  newsMeta: { color: "#52525B", fontSize: 11.5, fontFamily: F_BODY },
   seasonWrap: { borderBottom: "1px solid #18181B", background: "#0D0D0F" },
   seasonInner: { maxWidth: 1180, margin: "0 auto", padding: "64px 24px 60px" },
   seasonGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(250px, 1fr))", gap: 14 },
