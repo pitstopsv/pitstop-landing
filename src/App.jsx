@@ -135,6 +135,10 @@ html{scroll-behavior:smooth}
 .newsrow{transition:border-color .2s,transform .2s}
 .newsrow:hover{border-color:#3F3F46;transform:translateY(-2px)}
 .tickertrack{display:inline-flex;white-space:nowrap;will-change:transform;animation:ticker 40s linear infinite}
+.prodtrack{display:flex;width:max-content;will-change:transform;animation:prodscroll linear infinite}
+@keyframes prodscroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.prodticker:hover .prodtrack,.prodticker:active .prodtrack{animation-play-state:paused}
+@media (prefers-reduced-motion:reduce){.prodtrack{animation:none}.prodticker{overflow-x:auto}}
 @keyframes ticker{from{transform:translateX(0)}to{transform:translateX(-50%)}}
 @media (prefers-reduced-motion:reduce){.tickertrack{animation:none}}
 @media (max-width:767px){.statitem:not(:last-child){border-right:none}}
@@ -1227,6 +1231,11 @@ export default function App() {
   const usedDriverNames = [...new Set(products.map(p => p.driver).filter(Boolean))].sort();
   const newestProducts = [...products].filter(p => p.inStock).sort((a, b) => (b.id || "").localeCompare(a.id || "")).slice(0, 4);
   const featuredProducts = products.filter(p => p.featured && p.inStock).slice(0, 4);
+  const stripProducts = (() => {
+    const feat = products.filter(p => p.featured && p.inStock);
+    const extra = newestProducts.filter(p => !feat.some(f => f.id === p.id));
+    return [...feat, ...extra].slice(0, 10);
+  })();
 
   const filtered = products.filter(p => {
     if (activeCategory !== "Todos" && p.category !== activeCategory) return false;
@@ -2146,9 +2155,25 @@ export default function App() {
             align="left"
             meta={products.length > 0 ? products.length + " productos en la tienda" : null}
           />
-          <div className="pgrid" style={S.productGrid}>
-            {(featuredProducts.length > 0 ? featuredProducts : newestProducts).map(p => <ProductCard key={p.id} p={p} waLink={waLink} onImageClick={openLightbox} onAdd={addToCart} highlight={highlightId === p.id} />)}
-          </div>
+          {stripProducts.length >= 4 ? (
+            <div className="prodticker" style={S.prodTicker}>
+              <div className="prodtrack" style={{ animationDuration: (stripProducts.length * 7) + "s" }}>
+                {[0, 1].map(dup => (
+                  <div key={dup} aria-hidden={dup === 1} style={S.prodTrackHalf}>
+                    {stripProducts.map(p => (
+                      <div key={p.id + "-" + dup} style={S.prodTickerItem}>
+                        <ProductCard p={p} waLink={waLink} onImageClick={openLightbox} onAdd={addToCart} highlight={highlightId === p.id} />
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="pgrid" style={S.productGrid}>
+              {(featuredProducts.length > 0 ? featuredProducts : newestProducts).map(p => <ProductCard key={p.id} p={p} waLink={waLink} onImageClick={openLightbox} onAdd={addToCart} highlight={highlightId === p.id} />)}
+            </div>
+          )}
           <div style={{ textAlign: "center", marginTop: 36 }}>
             <a className="btng" href="#/catalogo" style={S.btnGhost}>Ver catálogo completo →</a>
           </div>
@@ -2432,6 +2457,9 @@ const S = {
   standPos: { color: "#E10600", fontFamily: F_HEAD, fontWeight: 800, fontSize: 12 },
   standName: { color: "#D4D4D8", fontSize: 12.5, fontWeight: 600 },
   standPts: { color: "#71717A", fontSize: 11.5 },
+  prodTicker: { overflow: "hidden", margin: "0 -24px", padding: "6px 0 10px", maskImage: "linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent)", WebkitMaskImage: "linear-gradient(90deg, transparent, #000 4%, #000 96%, transparent)" },
+  prodTrackHalf: { display: "flex", gap: 22, paddingRight: 22 },
+  prodTickerItem: { width: 272, flexShrink: 0, display: "flex" },
   newsRow: { display: "flex", flexDirection: "column", gap: 6, padding: "15px 17px", border: "1px solid #1E1E22", borderRadius: 10, background: "#101013", textDecoration: "none" },
   newsTitle: { color: "#E4E4E7", fontSize: 14, fontWeight: 600, lineHeight: 1.45, fontFamily: F_BODY },
   newsMeta: { color: "#52525B", fontSize: 11.5, fontFamily: F_BODY },
