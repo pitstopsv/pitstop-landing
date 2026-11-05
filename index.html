@@ -21,6 +21,21 @@
     <meta property="og:image:height" content="630" />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:image" content="https://pitstopelsalvador.netlify.app/og-image.jpg" />
+
+    <!-- Estadísticas de visitas (GoatCounter: gratuito, sin cookies, anónimo) -->
+    <script>
+      window.goatcounter = {
+        path: function () {
+          return location.pathname + (location.hash && location.hash.length > 1 ? location.hash : "");
+        },
+      };
+      window.addEventListener("hashchange", function () {
+        if (window.goatcounter && window.goatcounter.count) {
+          window.goatcounter.count({ path: location.pathname + location.hash });
+        }
+      });
+    </script>
+    <script data-goatcounter="https://pitstopsv.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>
   </head>
   <body style="margin:0;background:#0B0B0C">
     <div id="root"></div>
