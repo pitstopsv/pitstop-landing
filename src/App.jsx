@@ -937,7 +937,7 @@ export default function App() {
       const item = plan.items.find(i => i.choice === "match:" + p.id);
       if (item) {
         updated++;
-        return { ...p, inStock: true, price: item.price || p.price, sizes: item.sizes.length ? item.sizes : p.sizes };
+        return { ...p, name: item.name, inStock: true, price: item.price || p.price, sizes: item.sizes.length ? item.sizes : p.sizes };
       }
       if (plan.markMissing && p.inStock && !matchedIds.has(String(p.id))) {
         agotados++;
@@ -1627,7 +1627,7 @@ export default function App() {
               <div style={{ ...S.formCard, border: "1px solid #E10600" }}>
                 <h3 style={S.adminH3}>Vista previa de importación — hoja "{importPlan.hoja}"</h3>
                 <p style={S.adminHint}>
-                  {importPlan.items.length} productos con stock disponible en el Excel → <b style={{ color: "#8FE38F" }}>{nuevos} se crearán</b> · <b style={{ color: "#7EB8FF" }}>{actualizar} actualizarán uno existente</b>{omitidos > 0 && <> · {omitidos} no se importarán</>}. Revisá cada fila: el menú dice qué se hará. <b>Nada se guarda hasta que presiones Aplicar.</b>
+                  {importPlan.items.length} productos con stock disponible en el Excel → <b style={{ color: "#8FE38F" }}>{nuevos} se crearán</b> · <b style={{ color: "#7EB8FF" }}>{actualizar} actualizarán uno existente</b>{omitidos > 0 && <> · {omitidos} no se importarán</>}. Revisá cada fila: el menú dice qué se hará. Al elegir "actualizar", el producto <b>toma el nombre del Excel</b> (el del proveedor actual) y conserva sus fotos. <b>Nada se guarda hasta que presiones Aplicar.</b>
                 </p>
                 <div style={{ maxHeight: 420, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8, paddingRight: 4 }}>
                   {importPlan.items.map((it, idx) => (
@@ -1638,6 +1638,11 @@ export default function App() {
                           {it.units} en stock · ${it.price} · {it.sizes.join(", ") || "sin talla"}{it.cat ? " · " + it.cat : ""}
                         </div>
                       </div>
+                      <div>
+                      {it.choice.startsWith("match:") && (() => {
+                        const m = it.candidatos.find(c => "match:" + c.id === it.choice);
+                        return m && m.name !== it.name ? <div style={{ color: "#D4A017", fontSize: 11, marginBottom: 5 }}>✏️ "{m.name.slice(0, 48)}{m.name.length > 48 ? "…" : ""}" pasará a llamarse como en el Excel</div> : null;
+                      })()}
                       <select value={it.choice} onChange={e => setChoice(idx, e.target.value)} style={{ ...S.input, marginBottom: 0, fontSize: 12.5 }}>
                         <option value="new">➕ Crear como producto nuevo</option>
                         {it.candidatos.map(c => (
@@ -1645,6 +1650,7 @@ export default function App() {
                         ))}
                         <option value="skip">— No importar</option>
                       </select>
+                      </div>
                     </div>
                   ))}
                 </div>
