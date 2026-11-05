@@ -382,6 +382,7 @@ function CartDrawer({ open, onClose, cart }) {
 }
 
 function ProductCard({ p, waLink, onImageClick, onAdd, highlight }) {
+  const isNew = (() => { const n = Number(p.id); return isFinite(n) && n > 1e12 && (Date.now() - n) < 14 * 86400000; })();
   const meta = [p.team, p.driver, p.gender && p.gender !== "Unisex" ? p.gender : null].filter(Boolean).join("  ·  ");
   const sizes = (p.sizes || []).filter(Boolean);
   const needSize = sizes.length > 0 && !sizes.includes("Onesize");
@@ -398,7 +399,12 @@ function ProductCard({ p, waLink, onImageClick, onAdd, highlight }) {
       <div style={{ position: "relative" }}>
         <ImageCarousel images={p.images} height={230} onImageClick={onImageClick ? (imgs, i) => onImageClick(imgs, i, p.id) : undefined} />
         {!p.inStock && <div style={S.soldOut}>Agotado</div>}
-        {p.featured && p.inStock && <div style={S.featuredBadge}>Destacado</div>}
+        {p.inStock && (p.featured || isNew) && (
+          <div style={{ position: "absolute", top: 12, left: 12, display: "flex", flexDirection: "column", gap: 6, zIndex: 5, alignItems: "flex-start" }}>
+            {p.featured && <div style={S.featuredBadgeIn}>Destacado</div>}
+            {isNew && <div style={S.newBadge}>Nuevo</div>}
+          </div>
+        )}
         {p.salePrice && p.inStock && <div style={S.saleBadge}>Oferta</div>}
       </div>
       <div style={{ padding: "18px 18px 20px", display: "flex", flexDirection: "column", flex: 1 }}>
@@ -447,11 +453,12 @@ function ProductCard({ p, waLink, onImageClick, onAdd, highlight }) {
 function getRoute() {
   const h = window.location.hash;
   if (h.startsWith("#/ofertas")) return "sale";
+  if (h.startsWith("#/juego")) return "game";
   if (h.startsWith("#/catalogo") || h.startsWith("#p/")) return "catalog";
   return "home";
 }
 
-const F1_CACHE_KEY = "pitstop_f1_data_v2";
+const F1_CACHE_KEY = "pitstop_f1_data_v3";
 function raceDateMs(r) {
   try { const t = new Date(r.date + "T" + (r.time || "12:00:00Z")).getTime(); return isNaN(t) ? NaN : t; } catch (e) { return NaN; }
 }
@@ -470,12 +477,12 @@ function raceCountdownMsg(nextRace, nowMs) {
   if (isNaN(t)) return null;
   const diff = t - nowMs;
   const name = raceDisplayName(nextRace.raceName);
-  if (diff <= 0) return "\u{1F3C1} " + name + " \u2014 \u00A1Hoy es la carrera!";
+  if (diff <= 0) return "🏁 " + name + " — ¡Hoy es la carrera!";
   const d = Math.floor(diff / 86400000);
   const h = Math.floor((diff % 86400000) / 3600000);
   const mnt = Math.floor((diff % 3600000) / 60000);
   const cuenta = d > 0 ? d + "d " + h + "h" : h > 0 ? h + "h " + mnt + "m" : mnt + "m";
-  return "\u{1F3C1} " + name + " \u2014 luces apagadas en " + cuenta;
+  return "🏁 " + name + " — luces apagadas en " + cuenta;
 }
 function useF1Data() {
   const [data, setData] = useState(null);
@@ -504,6 +511,9 @@ function useF1Data() {
           name: (((d.Driver && d.Driver.givenName) || "") + " " + ((d.Driver && d.Driver.familyName) || "")).trim(),
           family: (d.Driver && d.Driver.familyName) || "",
         }));
+        const driversAll = ((dl[0] && dl[0].DriverStandings) || []).map(d => ({
+          name: (((d.Driver && d.Driver.givenName) || "") + " " + ((d.Driver && d.Driver.familyName) || "")).trim(),
+        })).filter(d => d.name);
         const cl = (cs && cs.MRData && cs.MRData.StandingsTable && cs.MRData.StandingsTable.StandingsLists) || [];
         const constructors = ((cl[0] && cl[0].ConstructorStandings) || []).slice(0, 8).map(c => ({
           pos: c.position,
@@ -521,7 +531,7 @@ function useF1Data() {
         } : null;
         const season = (ss && ss.MRData && ss.MRData.StandingsTable && ss.MRData.StandingsTable.season) || "";
         if (races.length === 0 && drivers.length === 0) return;
-        const fresh = { ts: Date.now(), races, drivers, constructors, lastRace, season };
+        const fresh = { ts: Date.now(), races, drivers, driversAll, constructors, lastRace, season };
         if (alive) setData(fresh);
         try { localStorage.setItem(F1_CACHE_KEY, JSON.stringify(fresh)); } catch (e) {}
       } catch (e) { /* sin datos: la página sigue igual */ }
@@ -537,6 +547,7 @@ function useF1Data() {
     nextRace,
     races: data ? data.races : null,
     drivers: (data && data.drivers && data.drivers.length > 0) ? data.drivers : null,
+    driversAll: (data && data.driversAll && data.driversAll.length > 2) ? data.driversAll : null,
     constructors: (data && data.constructors && data.constructors.length > 0) ? data.constructors : null,
     lastRace: (data && data.lastRace && data.lastRace.podium && data.lastRace.podium.length > 0) ? data.lastRace : null,
     season: (data && data.season) || "",
@@ -544,12 +555,12 @@ function useF1Data() {
   };
 }
 
-const FLAGS = { "bahrain": "\u{1F1E7}\u{1F1ED}", "saudi arabia": "\u{1F1F8}\u{1F1E6}", "australia": "\u{1F1E6}\u{1F1FA}", "japan": "\u{1F1EF}\u{1F1F5}", "china": "\u{1F1E8}\u{1F1F3}", "usa": "\u{1F1FA}\u{1F1F8}", "united states": "\u{1F1FA}\u{1F1F8}", "italy": "\u{1F1EE}\u{1F1F9}", "monaco": "\u{1F1F2}\u{1F1E8}", "canada": "\u{1F1E8}\u{1F1E6}", "spain": "\u{1F1EA}\u{1F1F8}", "austria": "\u{1F1E6}\u{1F1F9}", "uk": "\u{1F1EC}\u{1F1E7}", "united kingdom": "\u{1F1EC}\u{1F1E7}", "great britain": "\u{1F1EC}\u{1F1E7}", "hungary": "\u{1F1ED}\u{1F1FA}", "belgium": "\u{1F1E7}\u{1F1EA}", "netherlands": "\u{1F1F3}\u{1F1F1}", "azerbaijan": "\u{1F1E6}\u{1F1FF}", "singapore": "\u{1F1F8}\u{1F1EC}", "mexico": "\u{1F1F2}\u{1F1FD}", "brazil": "\u{1F1E7}\u{1F1F7}", "qatar": "\u{1F1F6}\u{1F1E6}", "uae": "\u{1F1E6}\u{1F1EA}", "united arab emirates": "\u{1F1E6}\u{1F1EA}", "abu dhabi": "\u{1F1E6}\u{1F1EA}", "france": "\u{1F1EB}\u{1F1F7}", "germany": "\u{1F1E9}\u{1F1EA}", "portugal": "\u{1F1F5}\u{1F1F9}", "south korea": "\u{1F1F0}\u{1F1F7}", "india": "\u{1F1EE}\u{1F1F3}", "turkey": "\u{1F1F9}\u{1F1F7}", "argentina": "\u{1F1E6}\u{1F1F7}", "south africa": "\u{1F1FF}\u{1F1E6}", "russia": "\u{1F1F7}\u{1F1FA}", "malaysia": "\u{1F1F2}\u{1F1FE}", "thailand": "\u{1F1F9}\u{1F1ED}", "vietnam": "\u{1F1FB}\u{1F1F3}", "rwanda": "\u{1F1F7}\u{1F1FC}" };
+const FLAGS = { "bahrain": "🇧🇭", "saudi arabia": "🇸🇦", "australia": "🇦🇺", "japan": "🇯🇵", "china": "🇨🇳", "usa": "🇺🇸", "united states": "🇺🇸", "italy": "🇮🇹", "monaco": "🇲🇨", "canada": "🇨🇦", "spain": "🇪🇸", "austria": "🇦🇹", "uk": "🇬🇧", "united kingdom": "🇬🇧", "great britain": "🇬🇧", "hungary": "🇭🇺", "belgium": "🇧🇪", "netherlands": "🇳🇱", "azerbaijan": "🇦🇿", "singapore": "🇸🇬", "mexico": "🇲🇽", "brazil": "🇧🇷", "qatar": "🇶🇦", "uae": "🇦🇪", "united arab emirates": "🇦🇪", "abu dhabi": "🇦🇪", "france": "🇫🇷", "germany": "🇩🇪", "portugal": "🇵🇹", "south korea": "🇰🇷", "india": "🇮🇳", "turkey": "🇹🇷", "argentina": "🇦🇷", "south africa": "🇿🇦", "russia": "🇷🇺", "malaysia": "🇲🇾", "thailand": "🇹🇭", "vietnam": "🇻🇳", "rwanda": "🇷🇼" };
 function countryFlag(r) {
   try {
     const c = ((r.Circuit && r.Circuit.Location && r.Circuit.Location.country) || "").toLowerCase().trim();
-    return FLAGS[c] || "\u{1F3C1}";
-  } catch (e) { return "\u{1F3C1}"; }
+    return FLAGS[c] || "🏁";
+  } catch (e) { return "🏁"; }
 }
 function fmtRaceDateShort(r) {
   const t = raceDateMs(r);
@@ -599,7 +610,7 @@ function countdownShort(nextRace, nowMs) {
   const t = raceDateMs(nextRace);
   if (isNaN(t)) return "";
   const diff = t - nowMs;
-  if (diff <= 0) return "\u00A1Hoy!";
+  if (diff <= 0) return "¡Hoy!";
   const d = Math.floor(diff / 86400000);
   const h = Math.floor((diff % 86400000) / 3600000);
   const m = Math.floor((diff % 3600000) / 60000);
@@ -614,10 +625,134 @@ function fmtRaceDate(r) {
   } catch (e) { return r.date || ""; }
 }
 
+/* ---------------- Pit Lane: juegos ---------------- */
+function LightsOutGame() {
+  const [phase, setPhase] = useState("idle"); // idle | seq | go | result | foul
+  const [lit, setLit] = useState(0);
+  const [ms, setMs] = useState(null);
+  const [best, setBest] = useState(() => {
+    try { const b = Number(localStorage.getItem("pitstop_reaction_best")); return b > 0 ? b : null; } catch (e) { return null; }
+  });
+  const timers = useRef([]);
+  const goAt = useRef(0);
+  const clearTimers = () => { timers.current.forEach(t => clearTimeout(t)); timers.current = []; };
+  useEffect(() => () => clearTimers(), []);
+
+  const start = () => {
+    clearTimers(); setMs(null); setLit(0); setPhase("seq");
+    for (let i = 1; i <= 5; i++) timers.current.push(setTimeout(() => setLit(i), i * 650));
+    const hold = 5 * 650 + 500 + Math.random() * 2200;
+    timers.current.push(setTimeout(() => { setLit(0); goAt.current = performance.now(); setPhase("go"); }, hold));
+  };
+  const tap = () => {
+    if (phase === "seq") { clearTimers(); setLit(0); setPhase("foul"); return; }
+    if (phase === "go") {
+      const t = Math.round(performance.now() - goAt.current);
+      setMs(t); setPhase("result");
+      setBest(prev => {
+        if (prev && prev <= t) return prev;
+        try { localStorage.setItem("pitstop_reaction_best", String(t)); } catch (e) {}
+        return t;
+      });
+      return;
+    }
+    start();
+  };
+  const verdict = (t) =>
+    t < 180 ? "¡Reflejos de piloto! 🏆" :
+    t < 250 ? "¡Nivel parrilla de salida!" :
+    t < 350 ? "Nada mal… ¿otra vuelta?" :
+    "Calentá motores y probá de nuevo";
+  const shareHref = "https://wa.me/?text=" + encodeURIComponent(
+    "⏱️ Mi tiempo de reacción en la salida estilo F1: " + ms + " ms 🚦 ¿Me ganás? Jugá aquí: https://pitstopelsalvador.netlify.app/#/juego"
+  );
+  const bgByPhase = phase === "go" ? "#10240F" : phase === "foul" ? "#2A0A08" : "#101013";
+  return (
+    <div style={S.seasonCard}>
+      <div style={S.seasonCardTitle}>Juego 1 · Luces apagadas</div>
+      <div style={{ color: "#A1A1AA", fontSize: 13, lineHeight: 1.6, margin: "8px 0 14px" }}>
+        Como en una salida real: se encienden las 5 luces, y cuando se apagan… ¡tocá lo más rápido que puedas! Los pilotos de F1 reaccionan en unos 200 ms.
+      </div>
+      <div
+        onPointerDown={tap}
+        role="button"
+        style={{ background: bgByPhase, border: "1px solid #1E1E22", borderRadius: 12, padding: "26px 16px", textAlign: "center", cursor: "pointer", userSelect: "none", WebkitUserSelect: "none", touchAction: "manipulation", transition: "background .15s" }}
+      >
+        <div style={{ display: "flex", gap: 10, justifyContent: "center", marginBottom: 18 }}>
+          {[1, 2, 3, 4, 5].map(i => (
+            <span key={i} style={{ width: 26, height: 26, borderRadius: "50%", background: lit >= i ? "#E10600" : "#1E1E22", border: "1px solid #2A2A2F", transition: "background .1s" }} />
+          ))}
+        </div>
+        <div style={{ fontFamily: F_HEAD, fontWeight: 900, fontStyle: "italic", fontSize: phase === "result" ? 38 : 20, color: "#fff", minHeight: 48, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          {phase === "idle" && "Tocá para empezar"}
+          {phase === "seq" && "Esperá…"}
+          {phase === "go" && "¡YA!"}
+          {phase === "result" && ms + " ms"}
+          {phase === "foul" && "🚫 ¡Salida en falso!"}
+        </div>
+        <div style={{ color: "#71717A", fontSize: 12, marginTop: 6 }}>
+          {phase === "result" && verdict(ms)}
+          {phase === "foul" && "Tocaste antes de que se apagaran. Tocá para reintentar."}
+          {(phase === "idle") && (best ? "Tu mejor marca: " + best + " ms" : "¿Qué tan rápido sos?")}
+          {phase === "seq" && "Cuando se apaguen las luces…"}
+          {phase === "go" && "¡Tocá ahora!"}
+        </div>
+      </div>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 14, flexWrap: "wrap" }}>
+        {best && <span style={{ color: "#A1A1AA", fontSize: 12.5 }}>🏆 Mejor marca: <b style={{ color: "#fff" }}>{best} ms</b></span>}
+        {phase === "result" && (
+          <a className="btnwa" href={shareHref} target="_blank" rel="noopener noreferrer" style={{ ...S.btnWa, width: "auto", padding: "10px 18px", marginLeft: "auto" }}>
+            <WaIcon size={14} /> Presumir mi tiempo
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function PodiumGame({ nextRace, drivers }) {
+  const [p, setP] = useState(["", "", ""]);
+  if (!nextRace || !drivers || drivers.length < 3) return null;
+  const raceName = raceDisplayName(nextRace.raceName);
+  const ready = p[0] && p[1] && p[2];
+  const text = "🏆 Mi podio para el " + raceName + ":\n🥇 " + p[0] + "\n🥈 " + p[1] + "\n🥉 " + p[2];
+  const href = "https://wa.me/" + WHATSAPP_NUMBER + "?text=" + encodeURIComponent(text);
+  const selStyle = { width: "100%", background: "#0B0B0C", border: "1px solid #2A2A2F", borderRadius: 8, color: "#E4E4E7", padding: "11px 12px", fontSize: 14, outline: "none", fontFamily: F_BODY, cursor: "pointer" };
+  const medals = ["🥇 Ganador", "🥈 Segundo", "🥉 Tercero"];
+  return (
+    <div style={S.seasonCard}>
+      <div style={S.seasonCardTitle}>Juego 2 · Armá tu podio</div>
+      <div style={{ color: "#A1A1AA", fontSize: 13, lineHeight: 1.6, margin: "8px 0 14px" }}>
+        ¿Quiénes suben al podio en el <b style={{ color: "#fff" }}>{raceName}</b> ({fmtRaceDateShort(nextRace)})? Elegí tu trío y mandanos tu predicción por WhatsApp.
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {[0, 1, 2].map(i => (
+          <select key={i} value={p[i]} onChange={e => { const v = e.target.value; setP(prev => prev.map((x, j) => j === i ? v : x)); }} style={selStyle} aria-label={medals[i]}>
+            <option value="">{medals[i]} — elegí piloto</option>
+            {drivers.filter(d => p[i] === d.name || !p.includes(d.name)).map(d => (
+              <option key={d.name} value={d.name}>{d.name}</option>
+            ))}
+          </select>
+        ))}
+      </div>
+      <a
+        className="btnwa"
+        href={ready ? href : undefined}
+        target="_blank"
+        rel="noopener noreferrer"
+        style={{ ...S.btnWa, marginTop: 14, opacity: ready ? 1 : 0.45, pointerEvents: ready ? "auto" : "none" }}
+      >
+        <WaIcon size={15} /> {ready ? "Enviar mi podio por WhatsApp" : "Elegí tus 3 pilotos"}
+      </a>
+      <div style={{ color: "#52525B", fontSize: 11.5, marginTop: 10 }}>Tu predicción nos llega directo al WhatsApp de la tienda.</div>
+    </div>
+  );
+}
+
 function TopBar({ messages }) {
   const list = (messages || []).filter(Boolean);
   if (list.length === 0) return null;
-  const line = list.join("\u2003\u2003\u00B7\u2003\u2003");
+  const line = list.join("  ·  ");
   return (
     <div style={S.topBar}>
       <div className="tickertrack">
@@ -905,6 +1040,11 @@ export default function App() {
     setOpenMenu(null);
     if (getRoute() === "home") window.scrollTo({ top: 0, behavior: "smooth" });
     else window.location.hash = "";
+  };
+  const goGame = () => {
+    setOpenMenu(null);
+    if (getRoute() === "game") window.scrollTo({ top: 0, behavior: "smooth" });
+    else window.location.hash = "/juego";
   };
   const goCatalog = () => {
     setOpenMenu(null);
@@ -1475,6 +1615,9 @@ export default function App() {
                 Inicio
               </button>
             )}
+            <button className="navbtn" onClick={goGame} style={S.navDropdownBtn}>
+              Juego 🚦
+            </button>
             {hasSaleProducts && (
               <button className="navbtn" onClick={goSale} style={{ ...S.navDropdownBtn, color: "#FF4438", fontWeight: 600 }}>
                 {content.navSale || "Ofertas"}
@@ -1570,6 +1713,7 @@ export default function App() {
             <div style={S.mobileDrawerBody}>
               {mobileSection === null && (<>
                 <button onClick={() => { setMobileMenuOpen(false); goHome(); }} style={S.mobileNavItem}><span>Inicio</span></button>
+                <button onClick={() => { setMobileMenuOpen(false); goGame(); }} style={S.mobileNavItem}><span>Juego 🚦</span></button>
                 {hasSaleProducts && <button onClick={() => { setMobileMenuOpen(false); goSale(); }} style={{ ...S.mobileNavItem, color: "#FF4438", fontWeight: 600 }}><span>{content.navSale || "Ofertas"}</span></button>}
                 <button onClick={() => setMobileSection("catalog")} style={S.mobileNavItem}><span>{content.navCatalog || "Catálogo"}</span><span style={{ color: "#52525B" }}>›</span></button>
                 {teams.length > 0 && <button onClick={() => setMobileSection("teams")} style={S.mobileNavItem}><span>{content.navTeams || "Escuderías"}</span><span style={{ color: "#52525B" }}>›</span></button>}
@@ -1834,6 +1978,20 @@ export default function App() {
         </section>
       )}
 
+      {route === "game" && (
+        <section style={{ ...S.section, paddingTop: 48 }}>
+          <button className="ftlink" onClick={goHome} style={S.backLink}>← Volver a la portada</button>
+          <SectionTitle part1="Pit" highlight="Lane" align="left" meta="dos juegos rápidos · gratis" />
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(300px, 1fr))", gap: 16 }}>
+            <LightsOutGame />
+            <PodiumGame nextRace={f1.nextRace} drivers={f1.driversAll || f1.drivers} />
+          </div>
+          <div style={{ color: "#52525B", fontSize: 12.5, marginTop: 24, maxWidth: "70ch" }}>
+            Mientras esperás la próxima carrera… <a href="#/catalogo" style={{ color: "#FF4438", textDecoration: "none" }}>pasá por el catálogo</a> — tu escudería tiene merch nuevo.
+          </div>
+        </section>
+      )}
+
       {route === "catalog" && (<>
       <section id="catalogo" style={{ ...S.section, paddingTop: 48 }}>
         <button className="ftlink" onClick={goHome} style={S.backLink}>← Volver a la portada</button>
@@ -2002,6 +2160,7 @@ export default function App() {
             <div className="ftlink" onClick={goHome} style={S.footerLink}>Inicio</div>
             {hasSaleProducts && <div className="ftlink" onClick={goSale} style={S.footerLink}>{content.navSale || "Ofertas"}</div>}
             <div className="ftlink" onClick={goCatalog} style={S.footerLink}>Catálogo</div>
+            <div className="ftlink" onClick={goGame} style={S.footerLink}>Juego 🚦</div>
             <div className="ftlink" onClick={() => scrollToSection("about")} style={S.footerLink}>Nuestra historia</div>
             <div className="ftlink" onClick={() => scrollToSection("faq")} style={S.footerLink}>Preguntas frecuentes</div>
           </div>
@@ -2097,6 +2256,8 @@ const S = {
   productGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(250px, 1fr))", gap: 22 },
   productCard: { background: "linear-gradient(180deg, #141417, #0F0F11)", borderRadius: 12, overflow: "hidden", border: "1px solid #1E1E22", display: "flex", flexDirection: "column" },
   soldOut: { position: "absolute", top: 12, left: 12, background: "rgba(11,11,12,0.85)", backdropFilter: "blur(4px)", color: "#A1A1AA", padding: "5px 12px", borderRadius: 5, fontSize: 10, fontWeight: 600, zIndex: 5, letterSpacing: "0.1em", textTransform: "uppercase", border: "1px solid rgba(255,255,255,0.08)" },
+  featuredBadgeIn: { background: "#E10600", color: "#fff", padding: "5px 12px", borderRadius: 5, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" },
+  newBadge: { background: "rgba(11,11,12,0.9)", color: "#fff", border: "1px solid #E10600", padding: "4px 11px", borderRadius: 5, fontSize: 10, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase" },
   featuredBadge: { position: "absolute", top: 12, left: 12, background: "#E10600", color: "#fff", padding: "5px 12px", borderRadius: 5, fontSize: 10, fontWeight: 700, zIndex: 5, letterSpacing: "0.1em", textTransform: "uppercase" },
   saleBadge: { position: "absolute", top: 12, right: 12, background: "#fff", color: "#0B0B0C", padding: "5px 12px", borderRadius: 5, fontSize: 10, fontWeight: 700, zIndex: 5, letterSpacing: "0.1em", textTransform: "uppercase" },
   cardEyebrow: { color: "#71717A", fontSize: 10, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.12em", marginBottom: 8 },
