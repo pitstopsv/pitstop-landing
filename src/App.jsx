@@ -699,6 +699,11 @@ function LightsOutGame() {
         </div>
       </div>
       <div style={{ display: "flex", gap: 10, alignItems: "center", marginTop: 14, flexWrap: "wrap" }}>
+        {(phase === "result" || phase === "foul") && (
+          <button className="btnp" onClick={start} style={{ ...S.btnCart, width: "auto", padding: "10px 20px" }}>
+            {phase === "foul" ? "🔄 Reintentar" : "🔄 Jugar de nuevo"}
+          </button>
+        )}
         {best && <span style={{ color: "#A1A1AA", fontSize: 12.5 }}>🏆 Mejor marca: <b style={{ color: "#fff" }}>{best} ms</b></span>}
         {phase === "result" && (
           <a className="btnwa" href={shareHref} target="_blank" rel="noopener noreferrer" style={{ ...S.btnWa, width: "auto", padding: "10px 18px", marginLeft: "auto" }}>
